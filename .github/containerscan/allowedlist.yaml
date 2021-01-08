@@ -1,0 +1,6 @@
+general:
+  bestPracticeViolations:
+    - DKL-LI-0001
+    - DKL-LI-0002
+    - CIS-DI-0005
+    - CIS-DI-0006
