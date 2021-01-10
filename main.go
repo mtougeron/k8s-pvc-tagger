@@ -124,7 +124,10 @@ func main() {
 
 	go func() {
 		http.HandleFunc("/healthz", statusHandler)
-		http.ListenAndServe("0.0.0.0:8080", nil)
+		err := http.ListenAndServe("0.0.0.0:8080", nil)
+		if err != nil {
+			log.Errorln(err)
+		}
 	}()
 
 	run := func(ctx context.Context) {
@@ -196,8 +199,14 @@ func main() {
 func statusHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		w.WriteHeader(http.StatusNotImplemented)
-		w.Write([]byte("method is not implemented"))
+		_, err := w.Write([]byte("method is not implemented"))
+		if err != nil {
+			log.Errorln("Cannot write status message:", err)
+		}
 		return
 	}
-	w.Write([]byte("OK"))
+	_, err := w.Write([]byte("OK"))
+	if err != nil {
+		log.Errorln("Cannot write status message:", err)
+	}
 }
