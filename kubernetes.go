@@ -140,8 +140,8 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 
 	annotations := pvc.GetAnnotations()
 	// Skip if the annotation says to ignore this PVC
-	if _, ok := annotations["aws-ebs-tagger/ignore"]; ok {
-		log.Debugln("aws-ebs-tagger/ignore annotation is set")
+	if _, ok := annotations[annotationPrefix+"/ignore"]; ok {
+		log.Debugln(annotationPrefix + "/ignore annotation is set")
 		return tags
 	}
 
@@ -154,9 +154,9 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 		tags[k] = v
 	}
 
-	tagString, ok := annotations["aws-ebs-tagger/tags"]
+	tagString, ok := annotations[annotationPrefix+"/tags"]
 	if !ok {
-		log.Debugln("Does not have aws-ebs-tagger/tags annotation")
+		log.Debugln("Does not have " + annotationPrefix + "/tags annotation")
 		return tags
 	}
 	err := json.Unmarshal([]byte(tagString), &customTags)
