@@ -39,11 +39,12 @@ import (
 )
 
 var (
-	buildVersion string = ""
-	buildTime    string = ""
-	debugEnv     string = os.Getenv("DEBUG")
-	debug        bool
-	defaultTags  map[string]string
+	buildVersion     string = ""
+	buildTime        string = ""
+	debugEnv         string = os.Getenv("DEBUG")
+	debug            bool
+	defaultTags      map[string]string
+	annotationPrefix string = "aws-ebs-tagger"
 )
 
 func init() {
@@ -80,6 +81,7 @@ func main() {
 	flag.StringVar(&leaseLockName, "lease-lock-name", "k8s-aws-ebs-tagger", "the lease lock resource name")
 	flag.StringVar(&leaseLockNamespace, "lease-lock-namespace", os.Getenv("NAMESPACE"), "the lease lock resource namespace")
 	flag.StringVar(&defaultTagsString, "default-tags", "", "Default tags to add to EBS volume")
+	flag.StringVar(&annotationPrefix, "annotation-prefix", "aws-ebs-tagger", "Annotation prefix to check")
 	flag.Parse()
 
 	if leaseLockName == "" {
