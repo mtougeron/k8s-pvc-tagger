@@ -60,21 +60,18 @@ func newEC2Client() (*Client, error) {
 }
 
 func (client *Client) tagVolume(volumeID string, tags map[string]string) {
-	log.Infoln("volumeID:", volumeID)
-	log.Infoln("tags:", tags)
-
 	var ec2Tags []*ec2.Tag
 	for k, v := range tags {
 		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k), Value: aws.String(v)})
 	}
 
-	// Add tags to the created instance
+	// Add tags to the volume
 	_, err := client.CreateTags(&ec2.CreateTagsInput{
 		Resources: []*string{aws.String(volumeID)},
 		Tags:      ec2Tags,
 	})
 	if err != nil {
-		log.Println("Could not create tags for volumeID", volumeID, err)
+		log.Println("Could not create tags for volumeID:", volumeID, err)
 		return
 	}
 }

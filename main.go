@@ -78,7 +78,7 @@ func main() {
 	flag.StringVar(&region, "region", os.Getenv("AWS_REGION"), "the region")
 	flag.StringVar(&leaseID, "lease-id", uuid.New().String(), "the holder identity name")
 	flag.StringVar(&leaseLockName, "lease-lock-name", "k8s-aws-ebs-tagger", "the lease lock resource name")
-	flag.StringVar(&leaseLockNamespace, "lease-lock-namespace", "", "the lease lock resource namespace")
+	flag.StringVar(&leaseLockNamespace, "lease-lock-namespace", os.Getenv("NAMESPACE"), "the lease lock resource namespace")
 	flag.StringVar(&defaultTagsString, "default-tags", "", "Default tags to add to EBS volume")
 	flag.Parse()
 
@@ -107,18 +107,18 @@ func main() {
 	if !ok {
 		log.Fatalln("Given AWS_REGION does not match AWS Region format.")
 	}
-
-	k8sClient, err = buildClient(kubeconfig, kubeContext)
-	if err != nil {
-		log.Fatalln("Unable to create kubernetes client", err)
-		os.Exit(1)
-	}
 	awsSession = createAWSSession(region)
 	if awsSession == nil {
 		err = fmt.Errorf("nil AWS session: %v", awsSession)
 		if err != nil {
 			log.Println(err.Error())
 		}
+		os.Exit(1)
+	}
+
+	k8sClient, err = buildClient(kubeconfig, kubeContext)
+	if err != nil {
+		log.Fatalln("Unable to create kubernetes client", err)
 		os.Exit(1)
 	}
 

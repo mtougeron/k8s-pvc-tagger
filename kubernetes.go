@@ -124,13 +124,14 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	annotations := pvc.GetObjectMeta().GetAnnotations()
 	// Skip if the annotation says to ignore this PVC
 	if _, ok := annotations["aws-ebs-tagger/ignore"]; ok {
+		log.Debugln("aws-ebs-tagger/ignore annotation is set")
 		return tags
 	}
 
 	// Set the default tags
 	for k, v := range defaultTags {
-		if strings.HasPrefix(k, "kubernetes.io") || k == "Name" {
-			log.Errorln(k, "is a restricted tag. Skipping...")
+		if !isValidTagName(k) {
+			log.Warnln(k, "is a restricted tag. Skipping...")
 			continue
 		}
 		tags[k] = v
@@ -147,14 +148,28 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	}
 
 	for k, v := range customTags {
-		if strings.HasPrefix(k, "kubernetes.io") || k == "Name" {
-			log.Errorln(k, "is a restricted tag. Skipping...")
+		if !isValidTagName(k) {
+			log.Warnln(k, "is a restricted tag. Skipping...")
 			continue
 		}
 		tags[k] = v
 	}
 
 	return tags
+}
+
+func isValidTagName(name string) bool {
+	if strings.HasPrefix(name, "kubernetes.io") {
+		return false
+	}
+	if name == "Name" {
+		return false
+	}
+	if name == "KubernetesCluster" {
+		return false
+	}
+
+	return true
 }
 
 func provisionedByAwsEbs(mObj metav1.Object) bool {
