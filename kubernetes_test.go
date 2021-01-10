@@ -157,7 +157,7 @@ func Test_buildTags(t *testing.T) {
 			want:        map[string]string{},
 		},
 		{
-			name:        "gnore annotation set with tags annotation set",
+			name:        "ignore annotation set with tags annotation set",
 			defaultTags: map[string]string{},
 			annotations: map[string]string{"aws-ebs-tagger/ignore": "exists", "aws-ebs-tagger/tags": "{\"foo\": \"bar\"}"},
 			want:        map[string]string{},
@@ -232,5 +232,57 @@ func Test_buildTags(t *testing.T) {
 			}
 		})
 	}
+}
 
+func Test_annotationPrefix(t *testing.T) {
+
+	pvc := &corev1.PersistentVolumeClaim{}
+	pvc.SetName("my-pvc")
+
+	tests := []struct {
+		name             string
+		annotationPrefix string
+		defaultTags      map[string]string
+		annotations      map[string]string
+		want             map[string]string
+	}{
+		{
+			name:             "annotationPrefix with proper ignore",
+			annotationPrefix: "something-else",
+			defaultTags:      map[string]string{"foo": "bar"},
+			annotations:      map[string]string{"something-else/ignore": ""},
+			want:             map[string]string{},
+		},
+		{
+			name:             "annotationPrefix with different ignore",
+			annotationPrefix: "something-else",
+			defaultTags:      map[string]string{"foo": "bar"},
+			annotations:      map[string]string{"aws-ebs-tagger/ignore": ""},
+			want:             map[string]string{"foo": "bar"},
+		},
+		{
+			name:             "annotationPrefix with default and custom tags",
+			annotationPrefix: "something-else",
+			defaultTags:      map[string]string{"foo": "bar"},
+			annotations:      map[string]string{"something-else/tags": "{\"something\": \"else\"}"},
+			want:             map[string]string{"foo": "bar", "something": "else"},
+		},
+		{
+			name:             "annotationPrefix with default and different custom tags",
+			annotationPrefix: "something-else",
+			defaultTags:      map[string]string{"foo": "bar"},
+			annotations:      map[string]string{"aws-ebs-tagger/tags": "{\"something\": \"else\"}"},
+			want:             map[string]string{"foo": "bar"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pvc.SetAnnotations(tt.annotations)
+			annotationPrefix = tt.annotationPrefix
+			defaultTags = tt.defaultTags
+			if got := buildTags(pvc); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("buildTags() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
