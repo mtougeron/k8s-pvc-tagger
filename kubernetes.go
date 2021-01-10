@@ -68,13 +68,12 @@ func watchForPersistentVolumeClaims() {
 
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			mObj := obj.(metav1.Object)
-			if !provisionedByAwsEbs(mObj) {
+			pvc := obj.(*corev1.PersistentVolumeClaim)
+			if !provisionedByAwsEbs(pvc) {
 				return
 			}
-			log.Infoln("New PVC Added to Store:", mObj.GetName())
+			log.Infoln("New PVC Added to Store:", pvc.GetName())
 
-			pvc := obj.(*corev1.PersistentVolumeClaim)
 			volumeID, tags, err := processPersistentVolumeClaim(pvc)
 			if err != nil || len(tags) == 0 {
 				return
@@ -82,14 +81,14 @@ func watchForPersistentVolumeClaims() {
 			ec2Client.tagVolume(volumeID, tags)
 		},
 		UpdateFunc: func(old, new interface{}) {
-			if !provisionedByAwsEbs(new.(metav1.Object)) {
-				return
-			}
 
 			newOne := new.(*corev1.PersistentVolumeClaim)
 			oldOne := old.(*corev1.PersistentVolumeClaim)
 			if newOne.ResourceVersion == oldOne.ResourceVersion {
 				log.Debugln("ResourceVersion are the same")
+				return
+			}
+			if !provisionedByAwsEbs(newOne) {
 				return
 			}
 			// TODO: Handle removed tags
@@ -172,8 +171,8 @@ func isValidTagName(name string) bool {
 	return true
 }
 
-func provisionedByAwsEbs(mObj metav1.Object) bool {
-	annotations := mObj.GetAnnotations()
+func provisionedByAwsEbs(pvc *corev1.PersistentVolumeClaim) bool {
+	annotations := pvc.GetAnnotations()
 	if provisionedBy, ok := annotations["volume.beta.kubernetes.io/storage-provisioner"]; !ok {
 		log.Debugln("no volume.beta.kubernetes.io/storage-provisioner annotation")
 		return false

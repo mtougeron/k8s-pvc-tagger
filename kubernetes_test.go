@@ -20,6 +20,8 @@ package main
 
 import (
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 func Test_parseAWSVolumeID(t *testing.T) {
@@ -48,6 +50,83 @@ func Test_parseAWSVolumeID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := parseAWSVolumeID(tt.k8sVolumeID); got != tt.want {
 				t.Errorf("parseAWSVolumeID() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_isValidTagName(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+		want bool
+	}{
+		{
+			name: "invalid prefix",
+			key:  "kubernetes.io/something",
+			want: false,
+		},
+		{
+			name: "valid prefix",
+			key:  "my-name.io/something",
+			want: true,
+		},
+		{
+			name: "invalid Name",
+			key:  "Name",
+			want: false,
+		},
+		{
+			name: "invalid KubernetesCluster",
+			key:  "KubernetesCluster",
+			want: false,
+		},
+		{
+			name: "valid annotation",
+			key:  "something",
+			want: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isValidTagName(tt.key); got != tt.want {
+				t.Errorf("isValidTagName() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_provisionedByAwsEbs(t *testing.T) {
+
+	pvc := &corev1.PersistentVolumeClaim{}
+	pvc.SetName("my-pvc")
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        bool
+	}{
+		{
+			name:        "valid provisioner",
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "kubernetes.io/aws-ebs"},
+			want:        true,
+		},
+		{
+			name:        "invalid provisioner",
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "something else"},
+			want:        false,
+		},
+		{
+			name:        "provisioner not set",
+			annotations: map[string]string{"some annotation": "something else"},
+			want:        false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pvc.SetAnnotations(tt.annotations)
+			if got := provisionedByAwsEbs(pvc); got != tt.want {
+				t.Errorf("provisionedByAwsEbs() = %v, want %v", got, tt.want)
 			}
 		})
 	}
