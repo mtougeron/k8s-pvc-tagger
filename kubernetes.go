@@ -120,7 +120,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	customTags := map[string]string{}
 	var tagString string
 
-	annotations := pvc.GetObjectMeta().GetAnnotations()
+	annotations := pvc.GetAnnotations()
 	// Skip if the annotation says to ignore this PVC
 	if _, ok := annotations["aws-ebs-tagger/ignore"]; ok {
 		log.Debugln("aws-ebs-tagger/ignore annotation is set")
