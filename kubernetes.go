@@ -196,7 +196,7 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 	volumeID := parseAWSVolumeID(pv.Spec.PersistentVolumeSource.AWSElasticBlockStore.VolumeID)
 	log.Debugln("parsed volumeID:", volumeID)
 	if len(volumeID) == 0 {
-		log.Errorf("Get PV from kubernetes cluster error:%v", err)
+		log.Errorf("Cannot parse VolumeID")
 		return "", nil, errors.New("Cannot parse VolumeID")
 	}
 
