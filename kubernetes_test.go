@@ -19,6 +19,7 @@
 package main
 
 import (
+	"reflect"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -130,4 +131,106 @@ func Test_provisionedByAwsEbs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_buildTags(t *testing.T) {
+
+	pvc := &corev1.PersistentVolumeClaim{}
+	pvc.SetName("my-pvc")
+
+	tests := []struct {
+		name        string
+		defaultTags map[string]string
+		annotations map[string]string
+		want        map[string]string
+	}{
+		{
+			name:        "ignore annotation set",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{"aws-ebs-tagger/ignore": ""},
+			want:        map[string]string{},
+		},
+		{
+			name:        "ignore annotation set with default tags",
+			defaultTags: map[string]string{"foo": "bar"},
+			annotations: map[string]string{"aws-ebs-tagger/ignore": ""},
+			want:        map[string]string{},
+		},
+		{
+			name:        "gnore annotation set with tags annotation set",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{"aws-ebs-tagger/ignore": "exists", "aws-ebs-tagger/tags": "{\"foo\": \"bar\"}"},
+			want:        map[string]string{},
+		},
+		{
+			name:        "tags annotation not set with default tags",
+			defaultTags: map[string]string{"foo": "bar", "something": "else"},
+			annotations: map[string]string{},
+			want:        map[string]string{"foo": "bar", "something": "else"},
+		},
+		{
+			name:        "tags annotation not set with no default tags",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{},
+			want:        map[string]string{},
+		},
+		{
+			name:        "tags annotation set empty with no default tags",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{"aws-ebs-tagger/tags": ""},
+			want:        map[string]string{},
+		},
+		{
+			name:        "tags annotation set with no default tags",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{"aws-ebs-tagger/tags": "{\"foo\": \"bar\"}"},
+			want:        map[string]string{"foo": "bar"},
+		},
+		{
+			name:        "tags annotation set with default tags",
+			defaultTags: map[string]string{"foo": "bar"},
+			annotations: map[string]string{"aws-ebs-tagger/tags": "{\"something\": \"else\"}"},
+			want:        map[string]string{"foo": "bar", "something": "else"},
+		},
+		{
+			name:        "tags annotation set with default tags with override",
+			defaultTags: map[string]string{"foo": "foo"},
+			annotations: map[string]string{"aws-ebs-tagger/tags": "{\"foo\": \"bar\", \"something\": \"else\"}"},
+			want:        map[string]string{"foo": "bar", "something": "else"},
+		},
+		{
+			name:        "tags annotation invalid json with no default tags",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{"aws-ebs-tagger/tags": "'asdas:\"asdasd\""},
+			want:        map[string]string{},
+		},
+		{
+			name:        "tags annotation invalid json with default tags",
+			defaultTags: map[string]string{"foo": "bar"},
+			annotations: map[string]string{"aws-ebs-tagger/tags": "'asdas:\"asdasd\""},
+			want:        map[string]string{"foo": "bar"},
+		},
+		{
+			name:        "tags annotation set with invalid name with no default tags",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{"aws-ebs-tagger/tags": "{\"foo\": \"bar\", \"kubernetes.io/foo\": \"bar\"}"},
+			want:        map[string]string{"foo": "bar"},
+		},
+		{
+			name:        "tags annotation set with invalid default tags",
+			defaultTags: map[string]string{"kubernetes.io/foo": "bar"},
+			annotations: map[string]string{"aws-ebs-tagger/tags": "{\"something\": \"else\"}"},
+			want:        map[string]string{"something": "else"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pvc.SetAnnotations(tt.annotations)
+			defaultTags = tt.defaultTags
+			if got := buildTags(pvc); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("buildTags() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
 }
