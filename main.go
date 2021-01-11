@@ -45,6 +45,7 @@ var (
 	debug            bool
 	defaultTags      map[string]string
 	annotationPrefix string = "aws-ebs-tagger"
+	watchNamespace   string
 )
 
 func init() {
@@ -82,6 +83,7 @@ func main() {
 	flag.StringVar(&leaseLockNamespace, "lease-lock-namespace", os.Getenv("NAMESPACE"), "the lease lock resource namespace")
 	flag.StringVar(&defaultTagsString, "default-tags", "", "Default tags to add to EBS volume")
 	flag.StringVar(&annotationPrefix, "annotation-prefix", "aws-ebs-tagger", "Annotation prefix to check")
+	flag.StringVar(&watchNamespace, "watch-namespace", os.Getenv("WATCH_NAMESPACE"), "A specific namespace to watch (default is all namespaces)")
 	flag.Parse()
 
 	if leaseLockName == "" {
@@ -133,7 +135,7 @@ func main() {
 	}()
 
 	run := func(ctx context.Context) {
-		watchForPersistentVolumeClaims()
+		watchForPersistentVolumeClaims(watchNamespace)
 	}
 
 	// use a Go context so we can tell the leaderelection code when we

@@ -76,8 +76,16 @@ func buildConfigFromFlags(kubeconfig string, context string) (*rest.Config, erro
 		}).ClientConfig()
 }
 
-func watchForPersistentVolumeClaims() {
-	factory := informers.NewSharedInformerFactory(k8sClient, 0)
+func watchForPersistentVolumeClaims(watchNamespace string) {
+
+	var factory informers.SharedInformerFactory
+	if watchNamespace == "" {
+		factory = informers.NewSharedInformerFactory(k8sClient, 0)
+	} else {
+		// TODO: Allow watching multiple namespaces
+		factory = informers.NewSharedInformerFactoryWithOptions(k8sClient, 0, informers.WithNamespace(watchNamespace))
+	}
+
 	informer := factory.Core().V1().PersistentVolumeClaims().Informer()
 	stopper := make(chan struct{})
 	defer close(stopper)
