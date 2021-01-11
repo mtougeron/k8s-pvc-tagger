@@ -108,26 +108,39 @@ func watchForPersistentVolumeClaims(watchNamespace string) {
 		},
 		UpdateFunc: func(old, new interface{}) {
 
-			newOne := new.(*corev1.PersistentVolumeClaim)
-			oldOne := old.(*corev1.PersistentVolumeClaim)
-			if newOne.ResourceVersion == oldOne.ResourceVersion {
+			newPVC := new.(*corev1.PersistentVolumeClaim)
+			oldPVC := old.(*corev1.PersistentVolumeClaim)
+			if newPVC.ResourceVersion == oldPVC.ResourceVersion {
 				log.Debugln("ResourceVersion are the same")
 				return
 			}
-			if !provisionedByAwsEbs(newOne) {
+			if !provisionedByAwsEbs(newPVC) {
 				return
 			}
-			if newOne.Spec.VolumeName == "" {
+			if newPVC.Spec.VolumeName == "" {
 				log.Debugln("Volume not yet created, skipping")
 				return
 			}
 			// TODO: Handle removed tags
-			log.Infoln("Need to reconcile tags:", newOne.GetName())
-			volumeID, tags, err := processPersistentVolumeClaim(newOne)
-			if err != nil || len(tags) == 0 {
+			log.Infoln("Need to reconcile tags:", newPVC.GetName())
+			volumeID, tags, err := processPersistentVolumeClaim(newPVC)
+			if err != nil {
 				return
 			}
-			ec2Client.addVolumeTags(volumeID, tags)
+			if len(tags) > 0 {
+				ec2Client.addVolumeTags(volumeID, tags)
+			}
+
+			oldTags := buildTags(oldPVC)
+			var deletedTags []string
+			for k := range oldTags {
+				if _, ok := tags[k]; !ok {
+					deletedTags = append(deletedTags, k)
+				}
+			}
+			if len(deletedTags) > 0 {
+				ec2Client.deleteVolumeTags(volumeID, deletedTags)
+			}
 		},
 	})
 

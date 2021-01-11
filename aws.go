@@ -97,3 +97,23 @@ func (client *Client) addVolumeTags(volumeID string, tags map[string]string) {
 		promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
 	}
 }
+
+func (client *Client) deleteVolumeTags(volumeID string, tags []string) {
+	var ec2Tags []*ec2.Tag
+	for _, k := range tags {
+		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k)})
+	}
+
+	// Add tags to the volume
+	_, err := client.DeleteTags(&ec2.DeleteTagsInput{
+		Resources: []*string{aws.String(volumeID)},
+		Tags:      ec2Tags,
+	})
+	if err != nil {
+		log.Errorln("Could not delete tags for volumeID:", volumeID, err)
+		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		return
+	} else {
+		promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
+	}
+}
