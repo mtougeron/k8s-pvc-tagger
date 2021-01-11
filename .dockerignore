@@ -1,2 +1,5 @@
 .git*
 examples/**
+
+charts/
+*.yaml
