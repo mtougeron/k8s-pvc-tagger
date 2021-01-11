@@ -1,0 +1,18 @@
+{{- if .Values.serviceMonitor -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
+  labels:
+    {{- include "k8s-aws-ebs-tagger.labels" . | nindent 4 }}
+spec:
+  endpoints:
+  - port: metrics
+  jobLabel: jobLabel
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- include "k8s-aws-ebs-tagger.selectorLabels" . | nindent 6 }}
+{{- end -}}
