@@ -104,7 +104,7 @@ func watchForPersistentVolumeClaims(watchNamespace string) {
 			if err != nil || len(tags) == 0 {
 				return
 			}
-			ec2Client.tagVolume(volumeID, tags)
+			ec2Client.addVolumeTags(volumeID, tags)
 		},
 		UpdateFunc: func(old, new interface{}) {
 
@@ -122,12 +122,12 @@ func watchForPersistentVolumeClaims(watchNamespace string) {
 				return
 			}
 			// TODO: Handle removed tags
-			log.Infoln("Need to reconcile tags")
+			log.Infoln("Need to reconcile tags:", newOne.GetName())
 			volumeID, tags, err := processPersistentVolumeClaim(newOne)
 			if err != nil || len(tags) == 0 {
 				return
 			}
-			ec2Client.tagVolume(volumeID, tags)
+			ec2Client.addVolumeTags(volumeID, tags)
 		},
 	})
 
@@ -154,6 +154,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	// Skip if the annotation says to ignore this PVC
 	if _, ok := annotations[annotationPrefix+"/ignore"]; ok {
 		log.Debugln(annotationPrefix + "/ignore annotation is set")
+		promIgnoredTotal.Inc()
 		return tags
 	}
 
@@ -161,6 +162,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	for k, v := range defaultTags {
 		if !isValidTagName(k) {
 			log.Warnln(k, "is a restricted tag. Skipping...")
+			promInvalidTagsTotal.Inc()
 			continue
 		}
 		tags[k] = v
@@ -179,6 +181,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	for k, v := range customTags {
 		if !isValidTagName(k) {
 			log.Warnln(k, "is a restricted tag. Skipping...")
+			promInvalidTagsTotal.Inc()
 			continue
 		}
 		tags[k] = v

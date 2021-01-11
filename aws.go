@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -77,7 +78,7 @@ func newEC2Client() (*Client, error) {
 	return &Client{svc}, nil
 }
 
-func (client *Client) tagVolume(volumeID string, tags map[string]string) {
+func (client *Client) addVolumeTags(volumeID string, tags map[string]string) {
 	var ec2Tags []*ec2.Tag
 	for k, v := range tags {
 		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k), Value: aws.String(v)})
@@ -90,6 +91,9 @@ func (client *Client) tagVolume(volumeID string, tags map[string]string) {
 	})
 	if err != nil {
 		log.Errorln("Could not create tags for volumeID:", volumeID, err)
+		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
 		return
+	} else {
+		promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
 	}
 }
