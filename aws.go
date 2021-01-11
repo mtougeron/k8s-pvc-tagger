@@ -89,7 +89,7 @@ func (client *Client) tagVolume(volumeID string, tags map[string]string) {
 		Tags:      ec2Tags,
 	})
 	if err != nil {
-		log.Println("Could not create tags for volumeID:", volumeID, err)
+		log.Errorln("Could not create tags for volumeID:", volumeID, err)
 		return
 	}
 }
