@@ -71,3 +71,5 @@ annotationPrefix: ""
 watchNamespace: ""
 
 serviceMonitor: false
+
+debug: false

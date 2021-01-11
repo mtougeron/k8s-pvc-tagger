@@ -43,6 +43,10 @@ spec:
             - --watch-namespace={{ .Values.watchNamespace }}
 {{- end }}
           env:
+{{- if .Values.debug }}
+            - name: DEBUG
+              value: "true"
+{{- end }}
             - name: AWS_REGION
               value: {{ .Values.region }}
             - name: POD_NAME
