@@ -73,3 +73,5 @@ watchNamespace: ""
 serviceMonitor: false
 
 debug: false
+
+extraEnvs: {}

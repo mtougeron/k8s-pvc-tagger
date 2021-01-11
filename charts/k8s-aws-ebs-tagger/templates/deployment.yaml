@@ -49,6 +49,10 @@ spec:
 {{- end }}
             - name: AWS_REGION
               value: {{ .Values.region }}
+{{- range $key, $value := .Values.extraEnvs }}
+          - name: {{ $key }}
+            value: {{ $value | quote }}
+{{- end }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
