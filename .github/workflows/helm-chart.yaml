@@ -1,0 +1,19 @@
+name: helm-chart
+on:
+  push:
+    # Publish `chart-*` tags as helm release.
+    tags:
+    - "chart-*"
+
+jobs:
+  release-chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Publish Helm chart
+        uses: stefanprodan/helm-gh-pages@master
+        with:
+          token: ${{ secrets.GHCR_PAT }}
+          charts_dir: charts
+          repository: helm-charts
+          branch: main
