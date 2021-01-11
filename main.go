@@ -32,6 +32,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -46,6 +49,21 @@ var (
 	defaultTags      map[string]string
 	annotationPrefix string = "aws-ebs-tagger"
 	watchNamespace   string
+
+	promActionsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "k8s_aws_ebs_tagger_actions_total",
+		Help: "The total number of PVCs tagged",
+	}, []string{"status"})
+
+	promIgnoredTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "k8s_aws_ebs_tagger_pvc_ignored_total",
+		Help: "The total number of PVCs ignored",
+	})
+
+	promInvalidTagsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "k8s_aws_ebs_tagger_invalid_tags_total",
+		Help: "The total number of invalid tags found",
+	})
 )
 
 func init() {
@@ -74,6 +92,8 @@ func main() {
 	var leaseLockNamespace string
 	var leaseID string
 	var defaultTagsString string
+	var statusPort string
+	var metricsPort string
 
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "absolute path to the kubeconfig file")
 	flag.StringVar(&kubeContext, "context", "", "the context to use")
@@ -84,6 +104,8 @@ func main() {
 	flag.StringVar(&defaultTagsString, "default-tags", "", "Default tags to add to EBS volume")
 	flag.StringVar(&annotationPrefix, "annotation-prefix", "aws-ebs-tagger", "Annotation prefix to check")
 	flag.StringVar(&watchNamespace, "watch-namespace", os.Getenv("WATCH_NAMESPACE"), "A specific namespace to watch (default is all namespaces)")
+	flag.StringVar(&statusPort, "status-port", "8000", "The healthz port")
+	flag.StringVar(&metricsPort, "metrics-port", "8001", "The prometheus metrics port")
 	flag.Parse()
 
 	if leaseLockName == "" {
@@ -135,8 +157,19 @@ func main() {
 	}
 
 	go func() {
-		http.HandleFunc("/healthz", statusHandler)
-		err := http.ListenAndServe("0.0.0.0:8080", nil)
+		mux := http.NewServeMux()
+		mux.HandleFunc("/healthz", statusHandler)
+		err := http.ListenAndServe("0.0.0.0:"+statusPort, mux)
+		if err != nil {
+			log.Errorln(err)
+		}
+	}()
+
+	go func() {
+		// Handle just the /metrics endpoint on the metrics port
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+		err := http.ListenAndServe("0.0.0.0:"+metricsPort, mux)
 		if err != nil {
 			log.Errorln(err)
 		}
