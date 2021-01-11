@@ -117,6 +117,10 @@ func watchForPersistentVolumeClaims(watchNamespace string) {
 			if !provisionedByAwsEbs(newOne) {
 				return
 			}
+			if newOne.Spec.VolumeName == "" {
+				log.Debugln("Volume not yet created, skipping")
+				return
+			}
 			// TODO: Handle removed tags
 			log.Infoln("Need to reconcile tags")
 			volumeID, tags, err := processPersistentVolumeClaim(newOne)
@@ -184,13 +188,11 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 }
 
 func isValidTagName(name string) bool {
-	if strings.HasPrefix(name, "kubernetes.io") {
+	if strings.HasPrefix(strings.ToLower(name), "kubernetes.io") {
 		return false
-	}
-	if name == "Name" {
+	} else if strings.ToLower(name) == "name" {
 		return false
-	}
-	if name == "KubernetesCluster" {
+	} else if strings.ToLower(name) == "kubernetescluster" {
 		return false
 	}
 

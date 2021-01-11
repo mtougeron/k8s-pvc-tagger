@@ -94,10 +94,18 @@ func main() {
 	}
 
 	if defaultTagsString != "" {
+		log.Debugln("defaultTagsString:", defaultTagsString)
 		err := json.Unmarshal([]byte(defaultTagsString), &defaultTags)
 		if err != nil {
-			log.Fatalln("default-tags are not valid json key/value pairs")
+			log.Fatalln("default-tags are not valid json key/value pairs:", err)
 		}
+	}
+	log.Infoln("Default Tags:", defaultTags)
+
+	if watchNamespace == "" {
+		log.Infoln("Watching namespace:", watchNamespace)
+	} else {
+		log.Infoln("Watching all namespaces")
 	}
 
 	// Parse AWS_REGION environment variable.
