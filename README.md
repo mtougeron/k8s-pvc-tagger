@@ -19,7 +19,7 @@ The `k8s-aws-ebs-tagger` watches for new PersistentVolumeClaims and when new AWS
 
 #### Examples
 
-1. The cmdline arg `--default-tags={"me": "touge"}` and no annotation will set the tag `me=touge` on _ALL_ EBS Volumes
+1. The cmdline arg `--default-tags={"me": "touge"}` and no annotation will set the tag `me=touge`
 
 2. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `aws-ebs-tagger/tags: | {"me": "someone else", "another tag": "some value"}` will create the tags `me=someone else` and `another tag=some value` on the EBS Volume
 
