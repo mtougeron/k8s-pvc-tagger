@@ -2,7 +2,7 @@
 
 A utility to tag AWS EBS volumes based on the PVC's `aws-ebs-tagger/tags` annotation
 
-![Go](https://github.com/mtougeron/k8s-aws-ebs-tagger/workflows/Go/badge.svg) ![Gosec](https://github.com/mtougeron/k8s-aws-ebs-tagger/workflows/Gosec/badge.svg) ![ContainerScan](https://github.com/mtougeron/k8s-aws-ebs-tagger/workflows/ContainerScan/badge.svg) [![GitHub tag](https://img.shields.io/github/tag/mtougeron/k8s-aws-ebs-tagger.svg)](https://github.com/mtougeron/k8s-aws-ebs-tagger/tags/)
+![Go](https://github.com/mtougeron/k8s-aws-ebs-tagger/workflows/Go/badge.svg) ![Gosec](https://github.com/mtougeron/k8s-aws-ebs-tagger/workflows/Gosec/badge.svg) ![ContainerScan](https://github.com/mtougeron/k8s-aws-ebs-tagger/workflows/ContainerScan/badge.svg) [![GitHub tag](https://img.shields.io/github/v/tag/mtougeron/k8s-aws-ebs-tagger)](https://github.com/mtougeron/k8s-aws-ebs-tagger/tags/)
 
 The `k8s-aws-ebs-tagger` watches for new PersistentVolumeClaims and when new AWS EBS volumes are created it adds tags based on the PVC's `aws-ebs-tagger/tags` annotation to the created EBS volume.
 
