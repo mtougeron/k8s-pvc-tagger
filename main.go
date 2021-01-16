@@ -125,14 +125,15 @@ func main() {
 	log.Infoln("Default Tags:", defaultTags)
 
 	if watchNamespace == "" {
-		log.Infoln("Watching namespace:", watchNamespace)
-	} else {
 		log.Infoln("Watching all namespaces")
+	} else {
+		log.Infoln("Watching namespace:", watchNamespace)
 	}
 
 	// Parse AWS_REGION environment variable.
 	if len(region) == 0 {
-		region = defaultAWSRegion
+		region, _ = getMetadataRegion()
+		log.Debugln("ec2Metadata region:", region)
 	}
 	ok, err := regexp.Match(regexpAWSRegion, []byte(region))
 	if err != nil {

@@ -47,8 +47,10 @@ spec:
             - name: DEBUG
               value: "true"
 {{- end }}
+{{- if .Values.region }}
             - name: AWS_REGION
               value: {{ .Values.region }}
+{{- end }}
 {{- range $key, $value := .Values.extraEnvs }}
           - name: {{ $key }}
             value: {{ $value | quote }}

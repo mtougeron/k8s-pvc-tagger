@@ -19,10 +19,12 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
@@ -39,9 +41,6 @@ var (
 const (
 	// Matching strings for region
 	regexpAWSRegion = `^[\w]{2}[-][\w]{4,9}[-][\d]$`
-
-	// Default AWS region.
-	defaultAWSRegion = "us-east-1"
 )
 
 // Client EC2 client interface
@@ -76,6 +75,19 @@ func createAWSSession(awsRegion string) *session.Session {
 func newEC2Client() (*Client, error) {
 	svc := ec2.New(awsSession)
 	return &Client{svc}, nil
+}
+
+func getMetadataRegion() (string, error) {
+	sess := session.Must(session.NewSession(&aws.Config{}))
+	svc := ec2metadata.New(sess)
+	doc, err := svc.GetInstanceIdentityDocument()
+	if err != nil {
+		return "", fmt.Errorf("could not get EC2 instance identity metadata")
+	}
+	if len(doc.Region) == 0 {
+		return "", fmt.Errorf("could not get valid EC2 region")
+	}
+	return doc.Region, nil
 }
 
 func (client *Client) addVolumeTags(volumeID string, tags map[string]string) {
