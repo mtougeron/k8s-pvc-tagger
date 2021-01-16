@@ -221,6 +221,10 @@ func provisionedByAwsEbs(pvc *corev1.PersistentVolumeClaim) bool {
 		log.Debugln("no volume.beta.kubernetes.io/storage-provisioner annotation")
 		return false
 	} else if provisionedBy == "kubernetes.io/aws-ebs" {
+		log.Debugln("kubernetes.io/aws-ebs volume")
+		return true
+	} else if provisionedBy == "ebs.csi.aws.com" {
+		log.Debugln("ebs.csi.aws.com volume")
 		return true
 	}
 	return false
@@ -236,7 +240,12 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 		return "", nil, err
 	}
 
-	volumeID := parseAWSVolumeID(pv.Spec.PersistentVolumeSource.AWSElasticBlockStore.VolumeID)
+	var volumeID string
+	if pvc.GetAnnotations()["volume.beta.kubernetes.io/storage-provisioner"] == "ebs.csi.aws.com" {
+		volumeID = pv.Spec.CSI.VolumeHandle
+	} else {
+		volumeID = parseAWSVolumeID(pv.Spec.PersistentVolumeSource.AWSElasticBlockStore.VolumeID)
+	}
 	log.Debugln("parsed volumeID:", volumeID)
 	if len(volumeID) == 0 {
 		log.Errorf("Cannot parse VolumeID")
