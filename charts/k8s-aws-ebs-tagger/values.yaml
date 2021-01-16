@@ -59,8 +59,6 @@ tolerations: []
 
 affinity: {}
 
-leaseLockName: "k8s-aws-ebs-tagger"
-
 region: ""
 
 defaultTags: {}

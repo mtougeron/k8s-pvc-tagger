@@ -29,10 +29,6 @@ spec:
         - name: {{ .Chart.Name }}
           args:
             - --lease-id=$(POD_NAME)
-            - --lease-lock-namespace=$(NAMESPACE)
-{{- if .Values.leaseLockName }}
-            - --lease-lock-name={{ .Values.leaseLockName }}
-{{- end }}
 {{- if .Values.annotationPrefix }}
             - --annotation-prefix={{ .Values.annotationPrefix }}
 {{- end }}
@@ -59,10 +55,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
