@@ -112,7 +112,10 @@ func main() {
 		log.Fatalln("unable to get lease lock resource name (missing lease-lock-name flag).")
 	}
 	if leaseLockNamespace == "" {
-		log.Fatalln("unable to get lease lock resource namespace (missing lease-lock-namespace flag).")
+		leaseLockNamespace = getCurrentNamespace()
+		if leaseLockNamespace == "" {
+			log.Fatalln("unable to get lease lock resource namespace (missing lease-lock-namespace flag).")
+		}
 	}
 
 	if defaultTagsString != "" {
