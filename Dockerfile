@@ -1,11 +1,10 @@
 FROM golang:1.15-alpine AS builder
 
 ARG VERSION=0.0.1
-ENV APP_NAME=k8s-aws-ebs-tagger
-ENV APP_VERSION=$VERSION
 ARG TARGETARCH
 
-ENV GO111MODULE=on \
+ENV APP_NAME=k8s-aws-ebs-tagger \
+    GO111MODULE=on \
     CGO_ENABLED=0 \
     GOOS=linux \
     GOARCH=$TARGETARCH
@@ -19,6 +18,8 @@ RUN go mod download
 
 # Copy the code into the container
 COPY . .
+
+ENV APP_VERSION=$VERSION
 
 # Build the application
 RUN date +%s > buildtime

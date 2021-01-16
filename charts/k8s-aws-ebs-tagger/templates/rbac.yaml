@@ -1,6 +1,7 @@
 {{- if .Values.rbac.create -}}
+---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
 rules:
@@ -10,20 +11,29 @@ rules:
     - leases
     verbs:
     - create
-  - apiGroups:
-    - coordination.k8s.io
-    resourceNames:
-    - {{ .Values.leaseLockName }}
-    resources:
-    - leases
-    verbs:
     - get
     - update
+{{- if .Values.watchNamespace }}
+  - apiGroups:
+    - ""
+    resources:
+    - persistentvolumeclaims
+    verbs:
+    - get
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
+rules:
   - apiGroups:
     - ""
     resources:
     - persistentvolumes
+{{- if not .Values.watchNamespace }}
     - persistentvolumeclaims
+{{- end }}
     verbs:
     - get
 ---
@@ -37,6 +47,19 @@ subjects:
     namespace: {{ .Release.Namespace }}
 roleRef:
   kind: ClusterRole
+  name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "k8s-aws-ebs-tagger.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
   name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
   apiGroup: rbac.authorization.k8s.io
 {{- end }}
