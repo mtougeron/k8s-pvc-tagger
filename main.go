@@ -28,6 +28,7 @@ import (
 	"os/signal"
 	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -180,7 +181,15 @@ func main() {
 	}()
 
 	run := func(ctx context.Context) {
-		watchForPersistentVolumeClaims(watchNamespace)
+		var namespaces []string
+		if watchNamespace != "" {
+			namespaces = strings.Split(watchNamespace, ",")
+		} else {
+			namespaces = append(namespaces, "")
+		}
+		for _, ns := range namespaces {
+			go runWatchNamespaceTask(ctx, ns)
+		}
 	}
 
 	// use a Go context so we can tell the leaderelection code when we
@@ -258,4 +267,13 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorln("Cannot write status message:", err)
 	}
+}
+
+func runWatchNamespaceTask(ctx context.Context, namespace string) {
+	go func() {
+		watchForPersistentVolumeClaims(namespace)
+	}()
+
+	// Wait util context is cancelled.
+	<-ctx.Done()
 }
