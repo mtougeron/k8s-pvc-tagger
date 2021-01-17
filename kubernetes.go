@@ -81,9 +81,10 @@ func watchForPersistentVolumeClaims(watchNamespace string) {
 
 	var factory informers.SharedInformerFactory
 	if watchNamespace == "" {
+		log.Infoln("Starting informer for all namespaces")
 		factory = informers.NewSharedInformerFactory(k8sClient, 0)
 	} else {
-		// TODO: Allow watching multiple namespaces
+		log.Infoln("Starting informer for namespace:", watchNamespace)
 		factory = informers.NewSharedInformerFactoryWithOptions(k8sClient, 0, informers.WithNamespace(watchNamespace))
 	}
 
@@ -99,7 +100,7 @@ func watchForPersistentVolumeClaims(watchNamespace string) {
 			if !provisionedByAwsEbs(pvc) {
 				return
 			}
-			log.Infoln("New PVC Added to Store:", pvc.GetName())
+			log.Infoln("New PVC Added to Store:", pvc.GetNamespace(), "/", pvc.GetName())
 
 			volumeID, tags, err := processPersistentVolumeClaim(pvc)
 			if err != nil || len(tags) == 0 {
@@ -122,8 +123,12 @@ func watchForPersistentVolumeClaims(watchNamespace string) {
 				log.Debugln("Volume not yet created, skipping")
 				return
 			}
-			// TODO: Handle removed tags
-			log.Infoln("Need to reconcile tags:", newPVC.GetName())
+			if newPVC.GetDeletionTimestamp() != nil {
+				log.Debugln("Volume is being deleted")
+				return
+			}
+
+			log.Infoln("Need to reconcile tags:", newPVC.GetNamespace(), "/", newPVC.GetName())
 			volumeID, tags, err := processPersistentVolumeClaim(newPVC)
 			if err != nil {
 				return
