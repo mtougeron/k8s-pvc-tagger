@@ -46,6 +46,7 @@ var (
 	buildVersion     string = ""
 	buildTime        string = ""
 	debugEnv         string = os.Getenv("DEBUG")
+	logFormatEnv     string = os.Getenv("LOG_FORMAT")
 	debug            bool
 	defaultTags      map[string]string
 	annotationPrefix string = "aws-ebs-tagger"
@@ -68,6 +69,10 @@ var (
 )
 
 func init() {
+	if logFormatEnv == "" || strings.ToLower(logFormatEnv) == "json" {
+		log.SetFormatter(&log.JSONFormatter{})
+	}
+
 	var err error
 	if len(debugEnv) != 0 {
 		debug, err = strconv.ParseBool(debugEnv)
@@ -127,12 +132,6 @@ func main() {
 		}
 	}
 	log.Infoln("Default Tags:", defaultTags)
-
-	if watchNamespace == "" {
-		log.Infoln("Watching all namespaces")
-	} else {
-		log.Infoln("Watching namespace:", watchNamespace)
-	}
 
 	// Parse AWS_REGION environment variable.
 	if len(region) == 0 {
