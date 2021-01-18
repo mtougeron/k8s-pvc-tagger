@@ -105,9 +105,9 @@ func (client *Client) addVolumeTags(volumeID string, tags map[string]string) {
 		log.Errorln("Could not create tags for volumeID:", volumeID, err)
 		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
 		return
-	} else {
-		promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
 	}
+
+	promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
 }
 
 func (client *Client) deleteVolumeTags(volumeID string, tags []string) {
@@ -125,7 +125,7 @@ func (client *Client) deleteVolumeTags(volumeID string, tags []string) {
 		log.Errorln("Could not delete tags for volumeID:", volumeID, err)
 		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
 		return
-	} else {
-		promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
 	}
+
+	promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
 }
