@@ -23,6 +23,8 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 func Test_parseAWSVolumeID(t *testing.T) {
@@ -108,8 +110,13 @@ func Test_provisionedByAwsEbs(t *testing.T) {
 		want        bool
 	}{
 		{
-			name:        "valid provisioner",
+			name:        "valid provisioner in-tree aws-ebs",
 			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "kubernetes.io/aws-ebs"},
+			want:        true,
+		},
+		{
+			name:        "valid provisioner ebs.csi.aws.com",
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "ebs.csi.aws.com"},
 			want:        true,
 		},
 		{
@@ -285,4 +292,102 @@ func Test_annotationPrefix(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_processPersistentVolumeClaim(t *testing.T) {
+	volumeName := "pvc-1234"
+	pvc := &corev1.PersistentVolumeClaim{}
+	pvc.SetName("my-pvc")
+	pvc.Spec.VolumeName = volumeName
+
+	tests := []struct {
+		name           string
+		provisionedBy  string
+		tagsAnnotation string
+		volumeID       string
+		wantedTags     map[string]string
+		wantedVolumeID string
+		wantedErr      bool
+	}{
+		{
+			name:           "csi with valid tags and volume id",
+			provisionedBy:  "ebs.csi.aws.com",
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			wantedTags:     map[string]string{"foo": "bar"},
+			wantedVolumeID: "vol-12345",
+			wantedErr:      false,
+		},
+		{
+			name:           "in-tree with valid tags and volume id",
+			provisionedBy:  "kubernetes.io/aws-ebs",
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeID:       "aws://us-east-1a/vol-12345",
+			wantedTags:     map[string]string{"foo": "bar"},
+			wantedVolumeID: "vol-12345",
+			wantedErr:      false,
+		},
+		{
+			name:           "in-tree with valid tags and invalid volume id",
+			provisionedBy:  "kubernetes.io/aws-ebs",
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeID:       "asdf://us-east-1a/vol-12345",
+			wantedTags:     nil,
+			wantedVolumeID: "",
+			wantedErr:      true,
+		},
+		{
+			name:           "other with valid tags and volume id",
+			provisionedBy:  "foo",
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			wantedTags:     nil,
+			wantedVolumeID: "",
+			wantedErr:      true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pvc.SetAnnotations(map[string]string{
+				annotationPrefix + "/tags":                      tt.tagsAnnotation,
+				"volume.beta.kubernetes.io/storage-provisioner": tt.provisionedBy,
+			})
+
+			var pvSpec corev1.PersistentVolumeSpec
+			if tt.provisionedBy == "ebs.csi.aws.com" {
+				pvSpec = corev1.PersistentVolumeSpec{
+					PersistentVolumeSource: corev1.PersistentVolumeSource{
+						CSI: &corev1.CSIPersistentVolumeSource{
+							VolumeHandle: tt.wantedVolumeID,
+						},
+					},
+				}
+			} else {
+				pvSpec = corev1.PersistentVolumeSpec{
+					PersistentVolumeSource: corev1.PersistentVolumeSource{
+						AWSElasticBlockStore: &corev1.AWSElasticBlockStoreVolumeSource{
+							VolumeID: tt.volumeID,
+						},
+					},
+				}
+			}
+			pv := &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        volumeName,
+					Annotations: map[string]string{},
+				},
+				Spec: pvSpec,
+			}
+			k8sClient = fake.NewSimpleClientset(pv)
+			volumeID, tags, err := processPersistentVolumeClaim(pvc)
+			if (err == nil) == tt.wantedErr {
+				t.Errorf("processPersistentVolumeClaim() err = %v, wantedErr %v", err, tt.wantedErr)
+			}
+			if volumeID != tt.wantedVolumeID {
+				t.Errorf("processPersistentVolumeClaim() volumeID = %v, want %v", volumeID, tt.wantedVolumeID)
+			}
+			if !reflect.DeepEqual(tags, tt.wantedTags) {
+				t.Errorf("processPersistentVolumeClaim() tags = %v, want %v", tags, tt.wantedTags)
+			}
+		})
+	}
+
 }

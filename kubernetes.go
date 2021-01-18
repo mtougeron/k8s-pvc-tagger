@@ -42,7 +42,7 @@ import (
 var (
 	// DefaultKubeConfigFile local kubeconfig if not running in cluster
 	DefaultKubeConfigFile = filepath.Join(os.Getenv("HOME"), ".kube", "config")
-	k8sClient             *kubernetes.Clientset
+	k8sClient             kubernetes.Interface
 )
 
 const (
@@ -248,7 +248,7 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 	var volumeID string
 	if pvc.GetAnnotations()["volume.beta.kubernetes.io/storage-provisioner"] == "ebs.csi.aws.com" {
 		volumeID = pv.Spec.CSI.VolumeHandle
-	} else {
+	} else if pvc.GetAnnotations()["volume.beta.kubernetes.io/storage-provisioner"] == "kubernetes.io/aws-ebs" {
 		volumeID = parseAWSVolumeID(pv.Spec.PersistentVolumeSource.AWSElasticBlockStore.VolumeID)
 	}
 	log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "volumeID": volumeID}).Debugln("parsed volumeID:", volumeID)
