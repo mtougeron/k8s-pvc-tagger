@@ -131,12 +131,12 @@ func main() {
 			log.Fatalln("default-tags are not valid json key/value pairs:", err)
 		}
 	}
-	log.Infoln("Default Tags:", defaultTags)
+	log.WithFields(log.Fields{"tags": defaultTags}).Infoln("Default Tags")
 
 	// Parse AWS_REGION environment variable.
 	if len(region) == 0 {
 		region, _ = getMetadataRegion()
-		log.Debugln("ec2Metadata region:", region)
+		log.WithFields(log.Fields{"region": region}).Debugln("ec2Metadata region")
 	}
 	ok, err := regexp.Match(regexpAWSRegion, []byte(region))
 	if err != nil {
