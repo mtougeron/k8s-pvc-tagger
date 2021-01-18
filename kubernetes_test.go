@@ -305,6 +305,7 @@ func Test_processPersistentVolumeClaim(t *testing.T) {
 		provisionedBy  string
 		tagsAnnotation string
 		volumeID       string
+		volumeName     string
 		wantedTags     map[string]string
 		wantedVolumeID string
 		wantedErr      bool
@@ -313,6 +314,7 @@ func Test_processPersistentVolumeClaim(t *testing.T) {
 			name:           "csi with valid tags and volume id",
 			provisionedBy:  "ebs.csi.aws.com",
 			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     volumeName,
 			wantedTags:     map[string]string{"foo": "bar"},
 			wantedVolumeID: "vol-12345",
 			wantedErr:      false,
@@ -321,6 +323,7 @@ func Test_processPersistentVolumeClaim(t *testing.T) {
 			name:           "in-tree with valid tags and volume id",
 			provisionedBy:  "kubernetes.io/aws-ebs",
 			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     volumeName,
 			volumeID:       "aws://us-east-1a/vol-12345",
 			wantedTags:     map[string]string{"foo": "bar"},
 			wantedVolumeID: "vol-12345",
@@ -330,6 +333,7 @@ func Test_processPersistentVolumeClaim(t *testing.T) {
 			name:           "in-tree with valid tags and invalid volume id",
 			provisionedBy:  "kubernetes.io/aws-ebs",
 			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     volumeName,
 			volumeID:       "asdf://us-east-1a/vol-12345",
 			wantedTags:     nil,
 			wantedVolumeID: "",
@@ -339,6 +343,17 @@ func Test_processPersistentVolumeClaim(t *testing.T) {
 			name:           "other with valid tags and volume id",
 			provisionedBy:  "foo",
 			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     volumeName,
+			wantedTags:     nil,
+			wantedVolumeID: "",
+			wantedErr:      true,
+		},
+		{
+			name:           "in-tree with missing PV",
+			provisionedBy:  "kubernetes.io/aws-ebs",
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     "asdf",
+			volumeID:       "aws://us-east-1a/vol-12345",
 			wantedTags:     nil,
 			wantedVolumeID: "",
 			wantedErr:      true,
@@ -371,7 +386,7 @@ func Test_processPersistentVolumeClaim(t *testing.T) {
 			}
 			pv := &corev1.PersistentVolume{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        volumeName,
+					Name:        tt.volumeName,
 					Annotations: map[string]string{},
 				},
 				Spec: pvSpec,
