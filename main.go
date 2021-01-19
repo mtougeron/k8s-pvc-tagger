@@ -28,6 +28,7 @@ import (
 	"os/signal"
 	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -45,6 +46,7 @@ var (
 	buildVersion     string = ""
 	buildTime        string = ""
 	debugEnv         string = os.Getenv("DEBUG")
+	logFormatEnv     string = os.Getenv("LOG_FORMAT")
 	debug            bool
 	defaultTags      map[string]string
 	annotationPrefix string = "aws-ebs-tagger"
@@ -67,6 +69,10 @@ var (
 )
 
 func init() {
+	if logFormatEnv == "" || strings.ToLower(logFormatEnv) == "json" {
+		log.SetFormatter(&log.JSONFormatter{})
+	}
+
 	var err error
 	if len(debugEnv) != 0 {
 		debug, err = strconv.ParseBool(debugEnv)
@@ -125,18 +131,12 @@ func main() {
 			log.Fatalln("default-tags are not valid json key/value pairs:", err)
 		}
 	}
-	log.Infoln("Default Tags:", defaultTags)
-
-	if watchNamespace == "" {
-		log.Infoln("Watching all namespaces")
-	} else {
-		log.Infoln("Watching namespace:", watchNamespace)
-	}
+	log.WithFields(log.Fields{"tags": defaultTags}).Infoln("Default Tags")
 
 	// Parse AWS_REGION environment variable.
 	if len(region) == 0 {
 		region, _ = getMetadataRegion()
-		log.Debugln("ec2Metadata region:", region)
+		log.WithFields(log.Fields{"region": region}).Debugln("ec2Metadata region")
 	}
 	ok, err := regexp.Match(regexpAWSRegion, []byte(region))
 	if err != nil {
@@ -180,7 +180,15 @@ func main() {
 	}()
 
 	run := func(ctx context.Context) {
-		watchForPersistentVolumeClaims(watchNamespace)
+		var namespaces []string
+		if watchNamespace != "" {
+			namespaces = strings.Split(watchNamespace, ",")
+		} else {
+			namespaces = append(namespaces, "")
+		}
+		for _, ns := range namespaces {
+			go runWatchNamespaceTask(ctx, ns)
+		}
 	}
 
 	// use a Go context so we can tell the leaderelection code when we
@@ -258,4 +266,15 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorln("Cannot write status message:", err)
 	}
+}
+
+func runWatchNamespaceTask(ctx context.Context, namespace string) {
+
+	// Make the informer's channel here so we can close it when the
+	// context is Done()
+	ch := make(chan struct{})
+	go watchForPersistentVolumeClaims(ch, namespace)
+
+	<-ctx.Done()
+	close(ch)
 }
