@@ -269,10 +269,12 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func runWatchNamespaceTask(ctx context.Context, namespace string) {
-	go func() {
-		watchForPersistentVolumeClaims(namespace)
-	}()
 
-	// Wait util context is cancelled.
+	// Make the informer's channel here so we can close it when the
+	// context is Done()
+	ch := make(chan struct{})
+	go watchForPersistentVolumeClaims(ch, namespace)
+
 	<-ctx.Done()
+	close(ch)
 }

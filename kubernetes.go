@@ -77,7 +77,7 @@ func buildConfigFromFlags(kubeconfig string, context string) (*rest.Config, erro
 		}).ClientConfig()
 }
 
-func watchForPersistentVolumeClaims(watchNamespace string) {
+func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 
 	var factory informers.SharedInformerFactory
 	log.WithFields(log.Fields{"namespace": watchNamespace}).Infoln("Starting informer")
@@ -88,8 +88,6 @@ func watchForPersistentVolumeClaims(watchNamespace string) {
 	}
 
 	informer := factory.Core().V1().PersistentVolumeClaims().Informer()
-	stopper := make(chan struct{})
-	defer close(stopper)
 
 	ec2Client, _ := newEC2Client()
 
@@ -149,7 +147,7 @@ func watchForPersistentVolumeClaims(watchNamespace string) {
 		},
 	})
 
-	informer.Run(stopper)
+	informer.Run(ch)
 }
 
 func parseAWSVolumeID(k8sVolumeID string) string {
