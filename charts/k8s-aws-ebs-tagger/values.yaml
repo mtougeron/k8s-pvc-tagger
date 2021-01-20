@@ -62,6 +62,7 @@ affinity: {}
 region: ""
 
 defaultTags: {}
+tagFormat: "json"
 
 annotationPrefix: ""
 
@@ -73,3 +74,4 @@ serviceMonitor: false
 debug: false
 
 extraEnvs: {}
+extraArgs: {}
