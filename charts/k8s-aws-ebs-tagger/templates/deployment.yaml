@@ -38,6 +38,13 @@ spec:
 {{- if .Values.watchNamespace }}
             - --watch-namespace={{ .Values.watchNamespace }}
 {{- end }}
+          {{- range $key, $value := .Values.extraArgs }}
+            {{- if $value }}
+            - --{{ $key }}={{ $value }}
+            {{- else }}
+            - --{{ $key }}
+            {{- end }}
+          {{- end }}
           env:
 {{- if .Values.debug }}
             - name: DEBUG

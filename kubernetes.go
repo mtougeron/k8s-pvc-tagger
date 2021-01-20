@@ -189,9 +189,13 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 		log.Debugln("Does not have " + annotationPrefix + "/tags annotation")
 		return tags
 	}
-	err := json.Unmarshal([]byte(tagString), &customTags)
-	if err != nil {
-		log.Errorln("Failed to Unmarshal JSON:", err)
+	if tagFormat == "csv" {
+		customTags = parseCsv(tagString)
+	} else {
+		err := json.Unmarshal([]byte(tagString), &customTags)
+		if err != nil {
+			log.Errorln("Failed to Unmarshal JSON:", err)
+		}
 	}
 
 	for k, v := range customTags {
@@ -235,6 +239,7 @@ func provisionedByAwsEbs(pvc *corev1.PersistentVolumeClaim) bool {
 
 func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, map[string]string, error) {
 	tags := buildTags(pvc)
+
 	log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "tags": tags}).Debugln("PVC Tags")
 
 	pv, err := k8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvc.Spec.VolumeName, metav1.GetOptions{})
