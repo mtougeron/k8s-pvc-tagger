@@ -150,6 +150,7 @@ func Test_buildTags(t *testing.T) {
 		defaultTags map[string]string
 		annotations map[string]string
 		want        map[string]string
+		tagFormat   string
 	}{
 		{
 			name:        "ignore annotation set",
@@ -229,14 +230,57 @@ func Test_buildTags(t *testing.T) {
 			annotations: map[string]string{"aws-ebs-tagger/tags": "{\"something\": \"else\"}"},
 			want:        map[string]string{"something": "else"},
 		},
+		{
+			name:        "tags annotation not set with default tags - csv",
+			defaultTags: map[string]string{"foo": "bar", "something": "else"},
+			annotations: map[string]string{},
+			want:        map[string]string{"foo": "bar", "something": "else"},
+			tagFormat:   "csv",
+		},
+		{
+			name:        "tags annotation not set with no default tags - csv",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{},
+			want:        map[string]string{},
+			tagFormat:   "csv",
+		},
+		{
+			name:        "tags annotation set with default tags - csv",
+			defaultTags: map[string]string{"foo": "bar"},
+			annotations: map[string]string{"aws-ebs-tagger/tags": "something=else"},
+			want:        map[string]string{"foo": "bar", "something": "else"},
+			tagFormat:   "csv",
+		},
+		{
+			name:        "tags annotation set with default tags with override - csv",
+			defaultTags: map[string]string{"foo": "foo"},
+			annotations: map[string]string{"aws-ebs-tagger/tags": "foo=bar,something=else"},
+			want:        map[string]string{"foo": "bar", "something": "else"},
+			tagFormat:   "csv",
+		},
+		{
+			name:        "tags annotation set with invalid tags - csv",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{"aws-ebs-tagger/tags": "{\"foo\": \"bar\"}"},
+			want:        map[string]string{},
+			tagFormat:   "csv",
+		},
+
+		// foo=bar,something=else
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pvc.SetAnnotations(tt.annotations)
 			defaultTags = tt.defaultTags
+			if tt.tagFormat != "" {
+				tagFormat = tt.tagFormat
+			} else {
+				tagFormat = "json"
+			}
 			if got := buildTags(pvc); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("buildTags() = %v, want %v", got, tt.want)
 			}
+			tagFormat = "json"
 		})
 	}
 }

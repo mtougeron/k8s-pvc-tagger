@@ -10,7 +10,8 @@ The `k8s-aws-ebs-tagger` watches for new PersistentVolumeClaims and when new AWS
 
 #### cmdline args
 
-`--default-tags` - A json encoded key/value map of the tags to set by default on EBS Volumes. Values can be overwritten by the `aws-ebs-tagger/tags` annotation.
+`--default-tags` - A json or csv encoded key/value map of the tags to set by default on EBS Volumes. Values can be overwritten by the `aws-ebs-tagger/tags` annotation.
+`--tag-format` - Either `json` or `csv` for the format the `aws-ebs-tagger/tags` and `--default-tags` are in.
 
 #### Annotations
 
@@ -52,9 +53,6 @@ helm install k8s-aws-ebs-tagger mtougeron/k8s-aws-ebs-tagger
 
 Images are available on the [GitHub Container Registry](https://github.com/users/mtougeron/packages/container/k8s-aws-ebs-tagger/versions) and [DockerHub](https://hub.docker.com/repository/docker/mtougeron/k8s-aws-ebs-tagger). Containers are published for `linux/amd64` & `linux/arm64`.
 
-### Known Issues
-
-It is currently only possible ([#9](https://github.com/mtougeron/k8s-aws-ebs-tagger/issues/9)) to watch all namespaces or a single namespace. This will be addressed in a future version of the app.
 
 ### Licensing
 

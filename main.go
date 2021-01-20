@@ -51,6 +51,7 @@ var (
 	defaultTags      map[string]string
 	annotationPrefix string = "aws-ebs-tagger"
 	watchNamespace   string
+	tagFormat        string = "json"
 
 	promActionsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "k8s_aws_ebs_tagger_actions_total",
@@ -108,6 +109,7 @@ func main() {
 	flag.StringVar(&leaseLockName, "lease-lock-name", "k8s-aws-ebs-tagger", "the lease lock resource name")
 	flag.StringVar(&leaseLockNamespace, "lease-lock-namespace", os.Getenv("NAMESPACE"), "the lease lock resource namespace")
 	flag.StringVar(&defaultTagsString, "default-tags", "", "Default tags to add to EBS volume")
+	flag.StringVar(&tagFormat, "tag-format", "json", "Whether the tags are in json or csv format. Default: json")
 	flag.StringVar(&annotationPrefix, "annotation-prefix", "aws-ebs-tagger", "Annotation prefix to check")
 	flag.StringVar(&watchNamespace, "watch-namespace", os.Getenv("WATCH_NAMESPACE"), "A specific namespace to watch (default is all namespaces)")
 	flag.StringVar(&statusPort, "status-port", "8000", "The healthz port")
@@ -124,11 +126,16 @@ func main() {
 		}
 	}
 
+	defaultTags = make(map[string]string)
 	if defaultTagsString != "" {
 		log.Debugln("defaultTagsString:", defaultTagsString)
-		err := json.Unmarshal([]byte(defaultTagsString), &defaultTags)
-		if err != nil {
-			log.Fatalln("default-tags are not valid json key/value pairs:", err)
+		if tagFormat == "csv" {
+			defaultTags = parseCsv(defaultTagsString)
+		} else {
+			err := json.Unmarshal([]byte(defaultTagsString), &defaultTags)
+			if err != nil {
+				log.Fatalln("default-tags are not valid json key/value pairs:", err)
+			}
 		}
 	}
 	log.WithFields(log.Fields{"tags": defaultTags}).Infoln("Default Tags")
@@ -277,4 +284,28 @@ func runWatchNamespaceTask(ctx context.Context, namespace string) {
 
 	<-ctx.Done()
 	close(ch)
+}
+
+func parseCsv(value string) map[string]string {
+
+	tags := make(map[string]string)
+	for _, s := range strings.Split(value, ",") {
+		if len(s) == 0 {
+			continue
+		}
+		pairs := strings.SplitN(s, "=", 2)
+		if len(pairs) != 2 {
+			log.Errorln("invalid csv key/value pair. Skipping...")
+			continue
+		}
+		k := strings.TrimSpace(pairs[0])
+		v := strings.TrimSpace(pairs[1])
+		if k == "" || v == "" {
+			log.Errorln("invalid csv key/value pair. Skipping...")
+			continue
+		}
+		tags[k] = v
+	}
+
+	return tags
 }
