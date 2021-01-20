@@ -62,7 +62,6 @@ affinity: {}
 region: ""
 
 defaultTags: {}
-tagFormat: "json"
 
 annotationPrefix: ""
 
