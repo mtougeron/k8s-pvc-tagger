@@ -51,7 +51,7 @@ helm install k8s-aws-ebs-tagger mtougeron/k8s-aws-ebs-tagger
 
 #### Container Image
 
-Images are available on the [GitHub Container Registry](https://github.com/users/mtougeron/packages/container/k8s-aws-ebs-tagger/versions) and [DockerHub](https://hub.docker.com/repository/docker/mtougeron/k8s-aws-ebs-tagger). Containers are published for `linux/amd64` & `linux/arm64`.
+Images are available on the [GitHub Container Registry](https://github.com/users/mtougeron/packages/container/k8s-aws-ebs-tagger/versions) and [DockerHub](https://hub.docker.com/r/mtougeron/k8s-aws-ebs-tagger). Containers are published for `linux/amd64` & `linux/arm64`.
 
 
 ### Licensing
