@@ -11,11 +11,13 @@ The `k8s-aws-ebs-tagger` watches for new PersistentVolumeClaims and when new AWS
 #### cmdline args
 
 `--default-tags` - A json or csv encoded key/value map of the tags to set by default on EBS Volumes. Values can be overwritten by the `aws-ebs-tagger/tags` annotation.
+
 `--tag-format` - Either `json` or `csv` for the format the `aws-ebs-tagger/tags` and `--default-tags` are in.
 
 #### Annotations
 
 `aws-ebs-tagger/ignore` - When this annotation is set (any value) it will ignore this PVC and not add any tags to it
+
 `aws-ebs-tagger/tags` - A json encoded key/value map of the tags to set on the EBS Volume (in addition to the `--default-tags`). It can also be used to override the values set in the `--default-tags`
 
 #### Examples
