@@ -20,6 +20,8 @@ rules:
     - persistentvolumeclaims
     verbs:
     - get
+    - list
+    - watch
 {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -36,6 +38,8 @@ rules:
 {{- end }}
     verbs:
     - get
+    - list
+    - watch
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
