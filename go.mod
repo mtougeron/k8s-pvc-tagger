@@ -1,6 +1,6 @@
 module github.com/mtougeron/k8s-aws-ebs-tagger
 
-go 1.15
+go 1.16
 
 require (
 	cloud.google.com/go v0.84.0 // indirect
