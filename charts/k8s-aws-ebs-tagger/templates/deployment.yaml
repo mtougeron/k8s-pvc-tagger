@@ -55,8 +55,8 @@ spec:
               value: {{ .Values.region }}
 {{- end }}
 {{- range $key, $value := .Values.extraEnvs }}
-          - name: {{ $key }}
-            value: {{ $value | quote }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
 {{- end }}
             - name: POD_NAME
               valueFrom:
