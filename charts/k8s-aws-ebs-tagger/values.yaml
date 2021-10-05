@@ -53,6 +53,14 @@ resources: {}
   #   cpu: 100m
   #   memory: 128Mi
 
+# Example for adding volumeMount(s) and volume(s)
+# volumeMounts:
+# - mountPath: "/mnt/some_test_folder/"
+#   name: some-test-folder
+# volumes:
+# - name: some-test-folder
+#   emptyDir: {}
+
 nodeSelector: {}
 
 tolerations: []
