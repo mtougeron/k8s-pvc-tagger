@@ -23,6 +23,40 @@ rules:
     - list
     - watch
 {{- end }}
+{{- if .Values.watchNamespace }}
+{{- $ns := split "," .Values.watchNamespace -}}
+{{- range $ns }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "k8s-aws-ebs-tagger.fullname" $ }}-pvc
+  namespace: {{ . }}
+rules:
+  - apiGroups:
+    - ""
+    resources:
+    - persistentvolumeclaims
+    verbs:
+    - get
+    - list
+    - watch
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "k8s-aws-ebs-tagger.fullname" $ }}-pvc
+  namespace: {{ . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "k8s-aws-ebs-tagger.serviceAccountName" $ }}
+    namespace: {{ $.Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "k8s-aws-ebs-tagger.fullname" $ }}-pvc
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
