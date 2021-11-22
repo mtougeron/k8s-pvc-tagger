@@ -77,6 +77,7 @@ annotationPrefix: ""
 watchNamespace: ""
 
 serviceMonitor: false
+serviceMonitorLabels: {}
 
 debug: false
 
