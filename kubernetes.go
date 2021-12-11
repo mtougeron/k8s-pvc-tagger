@@ -249,15 +249,23 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 	}
 
 	var volumeID string
-	if pvc.GetAnnotations()["volume.beta.kubernetes.io/storage-provisioner"] == "ebs.csi.aws.com" {
+	annotations := pvc.GetAnnotations()
+	if annotations == nil {
+		log.Errorf("cannot get PVC annotations")
+		return "", nil, errors.New("cannot get PVC annotations")
+	}
+	if provisionedBy, ok := annotations["volume.beta.kubernetes.io/storage-provisioner"]; !ok {
+		log.Errorf("cannot get volume.beta.kubernetes.io/storage-provisioner annotation")
+		return "", nil, errors.New("cannot get volume.beta.kubernetes.io/storage-provisioner annotation")
+	} else if provisionedBy == "ebs.csi.aws.com" {
 		volumeID = pv.Spec.CSI.VolumeHandle
-	} else if pvc.GetAnnotations()["volume.beta.kubernetes.io/storage-provisioner"] == "kubernetes.io/aws-ebs" {
+	} else if provisionedBy == "kubernetes.io/aws-ebs" {
 		volumeID = parseAWSVolumeID(pv.Spec.PersistentVolumeSource.AWSElasticBlockStore.VolumeID)
 	}
 	log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "volumeID": volumeID}).Debugln("parsed volumeID:", volumeID)
 	if len(volumeID) == 0 {
 		log.Errorf("Cannot parse VolumeID")
-		return "", nil, errors.New("Cannot parse VolumeID")
+		return "", nil, errors.New("cannot parse VolumeID")
 	}
 
 	return volumeID, tags, nil
