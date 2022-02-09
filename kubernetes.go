@@ -50,7 +50,7 @@ const (
 	regexpAWSVolumeID = `^aws:\/\/\w{2}-\w{4,9}-\d\w\/(vol-\w+)$`
 )
 
-func buildClient(kubeconfig string, kubeContext string) (*kubernetes.Clientset, error) {
+func BuildClient(kubeconfig string, kubeContext string) (*kubernetes.Clientset, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		if kubeconfig == "" {
@@ -258,7 +258,7 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 		log.Errorf("cannot get volume.beta.kubernetes.io/storage-provisioner annotation")
 		return "", nil, errors.New("cannot get volume.beta.kubernetes.io/storage-provisioner annotation")
 	} else if provisionedBy == "ebs.csi.aws.com" {
-		volumeID = pv.Spec.CSI.VolumeHandle
+		volumeID = pv.Spec.PersistentVolumeSource.CSI.VolumeHandle
 	} else if provisionedBy == "kubernetes.io/aws-ebs" {
 		volumeID = parseAWSVolumeID(pv.Spec.PersistentVolumeSource.AWSElasticBlockStore.VolumeID)
 	}

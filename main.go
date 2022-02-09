@@ -161,7 +161,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	k8sClient, err = buildClient(kubeconfig, kubeContext)
+	k8sClient, err = BuildClient(kubeconfig, kubeContext)
 	if err != nil {
 		log.Fatalln("Unable to create kubernetes client", err)
 		os.Exit(1)
