@@ -13,5 +13,5 @@ keywords:
 sources:
   - https://github.com/mtougeron/k8s-aws-ebs-tagger
 
-version: 1.2.2
-appVersion: v0.0.5
+version: 1.2.3
+appVersion: v0.0.6
