@@ -177,9 +177,13 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	// Set the default tags
 	for k, v := range defaultTags {
 		if !isValidTagName(k) {
-			log.Warnln(k, "is a restricted tag. Skipping...")
-			promInvalidTagsTotal.Inc()
-			continue
+			if !allowAllTags {
+				log.Warnln(k, "is a restricted tag. Skipping...")
+				promInvalidTagsTotal.Inc()
+				continue
+			} else {
+				log.Warnln(k, "is a restricted tag but still allowing it to be set...")
+			}
 		}
 		tags[k] = v
 	}
@@ -200,9 +204,13 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 
 	for k, v := range customTags {
 		if !isValidTagName(k) {
-			log.Warnln(k, "is a restricted tag. Skipping...")
-			promInvalidTagsTotal.Inc()
-			continue
+			if !allowAllTags {
+				log.Warnln(k, "is a restricted tag. Skipping...")
+				promInvalidTagsTotal.Inc()
+				continue
+			} else {
+				log.Warnln(k, "is a restricted tag but still allowing it to be set...")
+			}
 		}
 		tags[k] = v
 	}
