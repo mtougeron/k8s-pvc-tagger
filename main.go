@@ -52,6 +52,7 @@ var (
 	annotationPrefix string = "aws-ebs-tagger"
 	watchNamespace   string
 	tagFormat        string = "json"
+	allowAllTags     bool
 
 	promActionsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "k8s_aws_ebs_tagger_actions_total",
@@ -114,6 +115,7 @@ func main() {
 	flag.StringVar(&watchNamespace, "watch-namespace", os.Getenv("WATCH_NAMESPACE"), "A specific namespace to watch (default is all namespaces)")
 	flag.StringVar(&statusPort, "status-port", "8000", "The healthz port")
 	flag.StringVar(&metricsPort, "metrics-port", "8001", "The prometheus metrics port")
+	flag.BoolVar(&allowAllTags, "allow-all-tags", false, "Whether or not to allow any tag, even Kubernetes assigned ones, to be set")
 	flag.Parse()
 
 	if leaseLockName == "" {
