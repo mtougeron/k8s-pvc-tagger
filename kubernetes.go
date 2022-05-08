@@ -19,9 +19,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"html/template"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -49,6 +51,13 @@ const (
 	// Matching strings for volume operations.
 	regexpAWSVolumeID = `^aws:\/\/\w{2}-\w{4,9}-\d\w\/(vol-\w+)$`
 )
+
+type TagTemplate struct {
+	Name        string
+	Namespace   string
+	Labels      map[string]string
+	Annotations map[string]string
+}
 
 func BuildClient(kubeconfig string, kubeContext string) (*kubernetes.Clientset, error) {
 	config, err := rest.InClusterConfig()
@@ -171,7 +180,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	if _, ok := annotations[annotationPrefix+"/ignore"]; ok {
 		log.Debugln(annotationPrefix + "/ignore annotation is set")
 		promIgnoredTotal.Inc()
-		return tags
+		return renderTagTemplates(pvc, tags)
 	}
 
 	// Set the default tags
@@ -191,7 +200,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	tagString, ok := annotations[annotationPrefix+"/tags"]
 	if !ok {
 		log.Debugln("Does not have " + annotationPrefix + "/tags annotation")
-		return tags
+		return renderTagTemplates(pvc, tags)
 	}
 	if tagFormat == "csv" {
 		customTags = parseCsv(tagString)
@@ -213,6 +222,31 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 			}
 		}
 		tags[k] = v
+	}
+
+	return renderTagTemplates(pvc, tags)
+}
+
+func renderTagTemplates(pvc *corev1.PersistentVolumeClaim, tags map[string]string) map[string]string {
+
+	tplData := TagTemplate{
+		Name:        pvc.GetName(),
+		Namespace:   pvc.GetNamespace(),
+		Labels:      pvc.GetLabels(),
+		Annotations: pvc.GetAnnotations(),
+	}
+
+	for k, v := range tags {
+		tmpl, err := template.New("tag").Parse(v)
+		if err != nil {
+			continue
+		}
+		buf := new(bytes.Buffer)
+		err = tmpl.Execute(buf, tplData)
+		if err != nil {
+			continue
+		}
+		tags[k] = buf.String()
 	}
 
 	return tags
