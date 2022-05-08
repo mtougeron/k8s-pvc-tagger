@@ -14,6 +14,8 @@ The `k8s-aws-ebs-tagger` watches for new PersistentVolumeClaims and when new AWS
 
 `--tag-format` - Either `json` or `csv` for the format the `aws-ebs-tagger/tags` and `--default-tags` are in.
 
+`--allow-all-tags` - Allow all tags to be set via the PVC; even those used by the EBS controllers. Use with caution!
+
 #### Annotations
 
 `aws-ebs-tagger/ignore` - When this annotation is set (any value) it will ignore this PVC and not add any tags to it
