@@ -34,10 +34,39 @@ The `k8s-aws-ebs-tagger` watches for new PersistentVolumeClaims and when new AWS
 
 #### ignored tags
 
-The following tags are ignored
+The following tags are ignored by default
  - `kubernetes.io/*`
  - `KubernetesCluster`
  - `Name`
+
+#### Tag Templates
+
+Tag values can be Go templates using values from the PVC's `Name`, `Namespace`, `Annotations`, and `Labels`.
+
+Some examples could be:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: touge-test
+  namespace: touge
+  labels:
+    TeamID: "Frontend"
+  annotations:
+    CostCenter: "1234"
+    aws-ebs-tagger/tags: |
+      {"Owner": "{{ .Labels.TeamID }}-{{ .Annotations.CostCenter }}"}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-1
+  namespace: my-app
+  annotations:
+    aws-ebs-tagger/tags: |
+      {"OwnerID": "{{ .Namespace }}/{{ .Name }}"}
+```
 
 ### Installation
 

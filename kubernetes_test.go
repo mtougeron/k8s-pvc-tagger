@@ -315,6 +315,7 @@ func Test_buildTags(t *testing.T) {
 				t.Errorf("buildTags() = %v, want %v", got, tt.want)
 			}
 			tagFormat = "json"
+			defaultTags = map[string]string{}
 		})
 	}
 }
@@ -323,6 +324,7 @@ func Test_annotationPrefix(t *testing.T) {
 
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName("my-pvc")
+	defaultAnnotationPrefix := annotationPrefix
 
 	tests := []struct {
 		name             string
@@ -368,6 +370,8 @@ func Test_annotationPrefix(t *testing.T) {
 			if got := buildTags(pvc); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("buildTags() = %v, want %v", got, tt.want)
 			}
+			annotationPrefix = defaultAnnotationPrefix
+			defaultTags = map[string]string{}
 		})
 	}
 }
@@ -483,4 +487,80 @@ func Test_processPersistentVolumeClaim(t *testing.T) {
 		})
 	}
 
+}
+
+func Test_templatedTags(t *testing.T) {
+
+	pvc := &corev1.PersistentVolumeClaim{}
+	pvc.SetName("my-pvc")
+	pvc.SetNamespace("my-namespace")
+
+	tests := []struct {
+		name        string
+		defaultTags map[string]string
+		annotations map[string]string
+		labels      map[string]string
+		want        map[string]string
+	}{
+		{
+			name:        "default tag with template",
+			defaultTags: map[string]string{"foo": "{{ .Name }}-{{ .Namespace }}"},
+			annotations: map[string]string{},
+			labels:      map[string]string{},
+			want:        map[string]string{"foo": "my-pvc-my-namespace"},
+		},
+		{
+			name:        "default tag overwritten with tag template",
+			defaultTags: map[string]string{"foo": "bar"},
+			annotations: map[string]string{annotationPrefix + "/tags": "{\"foo\": \"{{ .Name }}-{{ .Namespace }}\"}"},
+			labels:      map[string]string{},
+			want:        map[string]string{"foo": "my-pvc-my-namespace"},
+		},
+		{
+			name:        "template using annotation",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{annotationPrefix + "/tags": "{\"foo\": \"{{ .Name }}-{{ .Annotations.TeamID }}\"}", "TeamID": "1234"},
+			labels:      map[string]string{},
+			want:        map[string]string{"foo": "my-pvc-1234"},
+		},
+		{
+			name:        "template using label",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{annotationPrefix + "/tags": "{\"foo\": \"{{ .Name }}-{{ .Labels.TeamID }}\"}"},
+			labels:      map[string]string{"TeamID": "1234"},
+			want:        map[string]string{"foo": "my-pvc-1234"},
+		},
+		{
+			name:        "template using label and annotation",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{annotationPrefix + "/tags": "{\"foo\": \"{{ .Name }}-{{ .Labels.TeamID }}\",\"bar\": \"{{ .Name }}-{{ .Annotations.DeptID }}\"}", "DeptID": "ABC"},
+			labels:      map[string]string{"TeamID": "1234"},
+			want:        map[string]string{"foo": "my-pvc-1234", "bar": "my-pvc-ABC"},
+		},
+		{
+			name:        "template using invalid label",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{annotationPrefix + "/tags": "{\"foo\": \"{{ .Name }}-{{ .Labels.SomeLabel }}\"}"},
+			labels:      map[string]string{"TeamID": "1234"},
+			want:        map[string]string{"foo": "my-pvc-"},
+		},
+		{
+			name:        "template using invalid field",
+			defaultTags: map[string]string{},
+			annotations: map[string]string{annotationPrefix + "/tags": "{\"foo\": \"{{ .Blah }}-{{ .Labels.TeamID }}\"}"},
+			labels:      map[string]string{"TeamID": "1234"},
+			want:        map[string]string{"foo": "{{ .Blah }}-{{ .Labels.TeamID }}"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pvc.SetAnnotations(tt.annotations)
+			pvc.SetLabels(tt.labels)
+			defaultTags = tt.defaultTags
+			if got := buildTags(pvc); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("buildTags() = %v, want %v", got, tt.want)
+			}
+			defaultTags = map[string]string{}
+		})
+	}
 }
