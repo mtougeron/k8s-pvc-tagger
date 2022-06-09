@@ -11,6 +11,17 @@
             "Resource": [
                 "arn:aws:ec2:*:*:volume/*"
             ]
+        },
+        {
+            "Sid": "",
+            "Effect": "Allow",
+            "Action": [
+                "elasticfilesystem:TagResource",
+                "elasticfilesystem:UntagResource",
+            ],
+            "Resource": [
+                "arn:aws:elasticfilesystem:*:*:access-point/*"
+            ]
         }
     ]
 }
