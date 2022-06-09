@@ -4,40 +4,40 @@ A utility to tag AWS EBS volumes based on the PVC's `aws-ebs-tagger/tags` annota
 
 ![Go](https://github.com/mtougeron/k8s-aws-ebs-tagger/workflows/Go/badge.svg) ![Gosec](https://github.com/mtougeron/k8s-aws-ebs-tagger/workflows/Gosec/badge.svg) ![ContainerScan](https://github.com/mtougeron/k8s-aws-ebs-tagger/workflows/ContainerScan/badge.svg) [![GitHub tag](https://img.shields.io/github/v/tag/mtougeron/k8s-aws-ebs-tagger)](https://github.com/mtougeron/k8s-aws-ebs-tagger/tags/)
 
-The `k8s-aws-ebs-tagger` watches for new PersistentVolumeClaims and when new AWS EBS volumes are created it adds tags based on the PVC's `aws-ebs-tagger/tags` annotation to the created EBS volume.
+The `k8s-aws-pvc-tagger` watches for new PersistentVolumeClaims and when new AWS EBS/EFS volumes are created it adds tags based on the PVC's `aws-pvc-tagger/tags` annotation to the created EBS volume.
 
 ### How to set tags
 
 #### cmdline args
 
-`--default-tags` - A json or csv encoded key/value map of the tags to set by default on EBS Volumes. Values can be overwritten by the `aws-ebs-tagger/tags` annotation.
+`--default-tags` - A json or csv encoded key/value map of the tags to set by default on EBS/EFS Volumes. Values can be overwritten by the `aws-pvc-tagger/tags` annotation.
 
-`--tag-format` - Either `json` or `csv` for the format the `aws-ebs-tagger/tags` and `--default-tags` are in.
+`--tag-format` - Either `json` or `csv` for the format the `aws-pvc-tagger/tags` and `--default-tags` are in.
 
-`--allow-all-tags` - Allow all tags to be set via the PVC; even those used by the EBS controllers. Use with caution!
+`--allow-all-tags` - Allow all tags to be set via the PVC; even those used by the EBS/EFS controllers. Use with caution!
 
 #### Annotations
 
-`aws-ebs-tagger/ignore` - When this annotation is set (any value) it will ignore this PVC and not add any tags to it
+`aws-pvc-tagger/ignore` - When this annotation is set (any value) it will ignore this PVC and not add any tags to it
 
-`aws-ebs-tagger/tags` - A json encoded key/value map of the tags to set on the EBS Volume (in addition to the `--default-tags`). It can also be used to override the values set in the `--default-tags`
+`aws-pvc-tagger/tags` - A json encoded key/value map of the tags to set on the EBS/EFS Volume (in addition to the `--default-tags`). It can also be used to override the values set in the `--default-tags`
 
 #### Examples
 
 1. The cmdline arg `--default-tags={"me": "touge"}` and no annotation will set the tag `me=touge`
 
-2. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `aws-ebs-tagger/tags: | {"me": "someone else", "another tag": "some value"}` will create the tags `me=someone else` and `another tag=some value` on the EBS Volume
+2. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `aws-pvc-tagger/tags: | {"me": "someone else", "another tag": "some value"}` will create the tags `me=someone else` and `another tag=some value` on the EBS/EFS Volume
 
-3. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `aws-ebs-tagger/ignore: ""` will not set any tags on the EBS Volume
+3. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `aws-pvc-tagger/ignore: ""` will not set any tags on the EBS/EFS Volume
 
-4. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `aws-ebs-tagger/tags: | {"cost-center": "abc", "environment": "prod"}` will create the tags `me=touge`, `cost-center=abc` and `environment=prod` on the EBS Volume
+4. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `aws-pvc-tagger/tags: | {"cost-center": "abc", "environment": "prod"}` will create the tags `me=touge`, `cost-center=abc` and `environment=prod` on the EBS/EFS Volume
 
 #### ignored tags
 
 The following tags are ignored by default
- - `kubernetes.io/*`
- - `KubernetesCluster`
- - `Name`
+- `kubernetes.io/*`
+- `KubernetesCluster`
+- `Name`
 
 #### Tag Templates
 
@@ -55,7 +55,7 @@ metadata:
     TeamID: "Frontend"
   annotations:
     CostCenter: "1234"
-    aws-ebs-tagger/tags: |
+    aws-pvc-tagger/tags: |
       {"Owner": "{{ .Labels.TeamID }}-{{ .Annotations.CostCenter }}"}
 ---
 apiVersion: v1
@@ -64,7 +64,7 @@ metadata:
   name: app-1
   namespace: my-app
   annotations:
-    aws-ebs-tagger/tags: |
+    aws-pvc-tagger/tags: |
       {"OwnerID": "{{ .Namespace }}/{{ .Name }}"}
 ```
 
