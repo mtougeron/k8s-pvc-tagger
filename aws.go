@@ -49,7 +49,7 @@ type EFSClient struct {
 	efsiface.EFSAPI
 }
 
-// Client pvc interface
+// Client ebs interface
 type EBSClient struct {
 	ec2iface.EC2API
 }
@@ -94,10 +94,10 @@ func getMetadataRegion() (string, error) {
 	svc := ec2metadata.New(sess)
 	doc, err := svc.GetInstanceIdentityDocument()
 	if err != nil {
-		return "", fmt.Errorf("could not get efs instance identity metadata")
+		return "", fmt.Errorf("could not get EC2 instance identity metadata")
 	}
 	if len(doc.Region) == 0 {
-		return "", fmt.Errorf("could not get valid efs region")
+		return "", fmt.Errorf("could not get valid EC2 region")
 	}
 	return doc.Region, nil
 }

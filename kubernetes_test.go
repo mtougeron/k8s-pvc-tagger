@@ -141,7 +141,7 @@ func Test_provisionedByAwsEbs(t *testing.T) {
 		want        bool
 	}{
 		{
-			name:        "valid provisioner in-tree aws-pvc",
+			name:        "valid provisioner in-tree aws-ebs",
 			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "kubernetes.io/aws-ebs"},
 			want:        true,
 		},
@@ -582,9 +582,9 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 			provisionedBy:  "efs.csi.aws.com",
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     volumeName,
-			volumeID:       "fs-05b82f747004ac501::fsap-06cc098e562d24942",
+			volumeID:       "fs-05b82f74723423::fsap-06cc098e562d23425",
 			wantedTags:     map[string]string{"foo": "bar"},
-			wantedVolumeID: "fsap-06cc098e562d24942",
+			wantedVolumeID: "fsap-06cc098e562d23425",
 			wantedErr:      false,
 		},
 		{
@@ -611,7 +611,7 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 			provisionedBy:  "efs.csi.aws.com",
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     "asdf",
-			volumeID:       "fs-05b82f747004ac501::fsap-06cc098e562d24942",
+			volumeID:       "fs-05b82f74723423::fsap-06cc098e562d23425",
 			wantedTags:     nil,
 			wantedVolumeID: "",
 			wantedErr:      true,

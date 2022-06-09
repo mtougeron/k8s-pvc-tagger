@@ -50,8 +50,7 @@ var (
 const (
 	// Matching strings for volume operations.
 	regexpAWSVolumeID = `^aws:\/\/\w{2}-\w{4,9}-\d\w\/(vol-\w+)$`
-	regexpEFSVolumeID = `^fs-\w+::(fsap-\w+)$` //	fs-05b82f747004ac501::fsap-06cc098e562d24942
-
+	regexpEFSVolumeID = `^fs-\w+::(fsap-\w+)$`
 )
 
 type TagTemplate struct {
