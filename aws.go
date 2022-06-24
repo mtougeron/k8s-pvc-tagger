@@ -28,6 +28,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/aws/aws-sdk-go/service/efs"
+	"github.com/aws/aws-sdk-go/service/efs/efsiface"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
@@ -35,7 +37,6 @@ import (
 var (
 	// awsSession the AWS Session
 	awsSession *session.Session
-	ec2Client  *Client
 )
 
 const (
@@ -43,8 +44,13 @@ const (
 	regexpAWSRegion = `^[\w]{2}[-][\w]{4,9}[-][\d]$`
 )
 
-// Client EC2 client interface
-type Client struct {
+// Client efs interface
+type EFSClient struct {
+	efsiface.EFSAPI
+}
+
+// Client ebs interface
+type EBSClient struct {
 	ec2iface.EC2API
 }
 
@@ -71,10 +77,16 @@ func createAWSSession(awsRegion string) *session.Session {
 	return session.Must(session.NewSession(awsConfig))
 }
 
+// newEFSClient initializes an EFS client
+func newEFSClient() (*EFSClient, error) {
+	svc := efs.New(awsSession)
+	return &EFSClient{svc}, nil
+}
+
 // newEC2Client initializes an EC2 client
-func newEC2Client() (*Client, error) {
+func newEC2Client() (*EBSClient, error) {
 	svc := ec2.New(awsSession)
-	return &Client{svc}, nil
+	return &EBSClient{svc}, nil
 }
 
 func getMetadataRegion() (string, error) {
@@ -90,7 +102,47 @@ func getMetadataRegion() (string, error) {
 	return doc.Region, nil
 }
 
-func (client *Client) addVolumeTags(volumeID string, tags map[string]string) {
+func (client *EFSClient) addEFSVolumeTags(volumeID string, tags map[string]string) {
+	var efsTags []*efs.Tag
+	for k, v := range tags {
+		efsTags = append(efsTags, &efs.Tag{Key: aws.String(k), Value: aws.String(v)})
+	}
+
+	// Add tags to the volume
+	_, err := client.TagResource(&efs.TagResourceInput{
+		ResourceId: aws.String(volumeID),
+		Tags:       efsTags,
+	})
+	if err != nil {
+		log.Errorln("Could not EFS create tags for volumeID:", volumeID, err)
+		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		return
+	}
+
+	promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
+}
+
+func (client *EFSClient) deleteEFSVolumeTags(volumeID string, tags []string) {
+	var efsTags []*string
+	for _, k := range tags {
+		efsTags = append(efsTags, aws.String(k))
+	}
+
+	// Add tags to the volume
+	_, err := client.UntagResource(&efs.UntagResourceInput{
+		ResourceId: aws.String(volumeID),
+		TagKeys:    efsTags,
+	})
+	if err != nil {
+		log.Errorln("Could not EFS delete tags for volumeID:", volumeID, err)
+		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		return
+	}
+
+	promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
+}
+
+func (client *EBSClient) addEBSVolumeTags(volumeID string, tags map[string]string) {
 	var ec2Tags []*ec2.Tag
 	for k, v := range tags {
 		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k), Value: aws.String(v)})
@@ -102,7 +154,7 @@ func (client *Client) addVolumeTags(volumeID string, tags map[string]string) {
 		Tags:      ec2Tags,
 	})
 	if err != nil {
-		log.Errorln("Could not create tags for volumeID:", volumeID, err)
+		log.Errorln("Could not create EBS tags for volumeID:", volumeID, err)
 		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
 		return
 	}
@@ -110,7 +162,7 @@ func (client *Client) addVolumeTags(volumeID string, tags map[string]string) {
 	promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
 }
 
-func (client *Client) deleteVolumeTags(volumeID string, tags []string) {
+func (client *EBSClient) deleteEBSVolumeTags(volumeID string, tags []string) {
 	var ec2Tags []*ec2.Tag
 	for _, k := range tags {
 		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k)})
@@ -122,7 +174,7 @@ func (client *Client) deleteVolumeTags(volumeID string, tags []string) {
 		Tags:      ec2Tags,
 	})
 	if err != nil {
-		log.Errorln("Could not delete tags for volumeID:", volumeID, err)
+		log.Errorln("Could not EBS delete tags for volumeID:", volumeID, err)
 		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
 		return
 	}

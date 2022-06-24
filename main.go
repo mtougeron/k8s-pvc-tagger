@@ -49,23 +49,23 @@ var (
 	logFormatEnv     string = os.Getenv("LOG_FORMAT")
 	debug            bool
 	defaultTags      map[string]string
-	annotationPrefix string = "aws-ebs-tagger"
+	annotationPrefix string = "aws-pvc-tagger"
 	watchNamespace   string
 	tagFormat        string = "json"
 	allowAllTags     bool
 
 	promActionsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "k8s_aws_ebs_tagger_actions_total",
+		Name: "k8s_aws_pvc_tagger_actions_total",
 		Help: "The total number of PVCs tagged",
 	}, []string{"status"})
 
 	promIgnoredTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "k8s_aws_ebs_tagger_pvc_ignored_total",
+		Name: "k8s_aws_pvc_tagger_pvc_ignored_total",
 		Help: "The total number of PVCs ignored",
 	})
 
 	promInvalidTagsTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "k8s_aws_ebs_tagger_invalid_tags_total",
+		Name: "k8s_aws_pvc_tagger_invalid_tags_total",
 		Help: "The total number of invalid tags found",
 	})
 )
@@ -107,11 +107,11 @@ func main() {
 	flag.StringVar(&kubeContext, "context", "", "the context to use")
 	flag.StringVar(&region, "region", os.Getenv("AWS_REGION"), "the region")
 	flag.StringVar(&leaseID, "lease-id", uuid.New().String(), "the holder identity name")
-	flag.StringVar(&leaseLockName, "lease-lock-name", "k8s-aws-ebs-tagger", "the lease lock resource name")
+	flag.StringVar(&leaseLockName, "lease-lock-name", "k8s-aws-pvc-tagger", "the lease lock resource name")
 	flag.StringVar(&leaseLockNamespace, "lease-lock-namespace", os.Getenv("NAMESPACE"), "the lease lock resource namespace")
-	flag.StringVar(&defaultTagsString, "default-tags", "", "Default tags to add to EBS volume")
+	flag.StringVar(&defaultTagsString, "default-tags", "", "Default tags to add to EBS/EFS volume")
 	flag.StringVar(&tagFormat, "tag-format", "json", "Whether the tags are in json or csv format. Default: json")
-	flag.StringVar(&annotationPrefix, "annotation-prefix", "aws-ebs-tagger", "Annotation prefix to check")
+	flag.StringVar(&annotationPrefix, "annotation-prefix", "aws-pvc-tagger", "Annotation prefix to check")
 	flag.StringVar(&watchNamespace, "watch-namespace", os.Getenv("WATCH_NAMESPACE"), "A specific namespace to watch (default is all namespaces)")
 	flag.StringVar(&statusPort, "status-port", "8000", "The healthz port")
 	flag.StringVar(&metricsPort, "metrics-port", "8001", "The prometheus metrics port")
