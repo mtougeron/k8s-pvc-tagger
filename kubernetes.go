@@ -30,6 +30,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -112,7 +113,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			if err != nil || len(tags) == 0 {
 				return
 			}
-			ec2Client.addVolumeTags(volumeID, tags)
+			ec2Client.addVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
 		},
 		UpdateFunc: func(old, new interface{}) {
 
@@ -140,7 +141,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				return
 			}
 			if len(tags) > 0 {
-				ec2Client.addVolumeTags(volumeID, tags)
+				ec2Client.addVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
 			}
 
 			oldTags := buildTags(oldPVC)
@@ -151,7 +152,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				}
 			}
 			if len(deletedTags) > 0 {
-				ec2Client.deleteVolumeTags(volumeID, deletedTags)
+				ec2Client.deleteVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
 			}
 		},
 	})
@@ -179,7 +180,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	// Skip if the annotation says to ignore this PVC
 	if _, ok := annotations[annotationPrefix+"/ignore"]; ok {
 		log.Debugln(annotationPrefix + "/ignore annotation is set")
-		promIgnoredTotal.Inc()
+		promIgnoredTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
 		promIgnoredLegacyTotal.Inc()
 		return renderTagTemplates(pvc, tags)
 	}
@@ -189,7 +190,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 		if !isValidTagName(k) {
 			if !allowAllTags {
 				log.Warnln(k, "is a restricted tag. Skipping...")
-				promInvalidTagsTotal.Inc()
+				promInvalidTagsTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
 				promInvalidTagsLegacyTotal.Inc()
 				continue
 			} else {
@@ -217,7 +218,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 		if !isValidTagName(k) {
 			if !allowAllTags {
 				log.Warnln(k, "is a restricted tag. Skipping...")
-				promInvalidTagsTotal.Inc()
+				promInvalidTagsTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
 				promInvalidTagsLegacyTotal.Inc()
 				continue
 			} else {

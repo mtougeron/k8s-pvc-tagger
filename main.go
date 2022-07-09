@@ -57,17 +57,17 @@ var (
 	promActionsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "k8s_pvc_tagger_actions_total",
 		Help: "The total number of PVCs tagged",
-	}, []string{"status"})
+	}, []string{"status", "storageclass"})
 
-	promIgnoredTotal = promauto.NewCounter(prometheus.CounterOpts{
+	promIgnoredTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "k8s_pvc_tagger_pvc_ignored_total",
 		Help: "The total number of PVCs ignored",
-	})
+	}, []string{"storageclass"})
 
-	promInvalidTagsTotal = promauto.NewCounter(prometheus.CounterOpts{
+	promInvalidTagsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "k8s_pvc_tagger_invalid_tags_total",
 		Help: "The total number of invalid tags found",
-	})
+	}, []string{"storageclass"})
 
 	promActionsLegacyTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "k8s_aws_ebs_tagger_actions_total",
