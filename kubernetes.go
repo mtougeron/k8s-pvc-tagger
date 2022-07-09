@@ -175,6 +175,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	tags := map[string]string{}
 	customTags := map[string]string{}
 	var tagString string
+	var legacyTagString string
 
 	annotations := pvc.GetAnnotations()
 	// Skip if the annotation says to ignore this PVC
@@ -183,6 +184,15 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 		promIgnoredTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
 		promIgnoredLegacyTotal.Inc()
 		return renderTagTemplates(pvc, tags)
+	}
+	// if the annotationPrefix has been changed, then we don't compare to the legacyAnnotationPrefix anymore
+	if annotationPrefix == defaultAnnotationPrefix {
+		if _, ok := annotations[legacyAnnotationPrefix+"/ignore"]; ok {
+			log.Debugln(legacyAnnotationPrefix + "/ignore annotation is set")
+			promIgnoredTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
+			promIgnoredLegacyTotal.Inc()
+			return renderTagTemplates(pvc, tags)
+		}
 	}
 
 	// Set the default tags
@@ -200,10 +210,22 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 		tags[k] = v
 	}
 
+	var legacyOk bool
 	tagString, ok := annotations[annotationPrefix+"/tags"]
-	if !ok {
-		log.Debugln("Does not have " + annotationPrefix + "/tags annotation")
+	// if the annotationPrefix has been changed, then we don't compare to the legacyAnnotationPrefix anymore
+	if annotationPrefix == defaultAnnotationPrefix {
+		legacyTagString, legacyOk = annotations[legacyAnnotationPrefix+"/tags"]
+	} else {
+		legacyOk = false
+		legacyTagString = ""
+	}
+	if !ok && !legacyOk {
+		log.Debugln("Does not have " + annotationPrefix + "/tags or legacy " + legacyAnnotationPrefix + "/tags annotation")
 		return renderTagTemplates(pvc, tags)
+	} else if ok && legacyOk {
+		log.Warnln("Has both " + annotationPrefix + "/tags AND legacy " + legacyAnnotationPrefix + "/tags annotation. Using newer " + annotationPrefix + "/tags annotation")
+	} else if legacyOk && !ok {
+		tagString = legacyTagString
 	}
 	if tagFormat == "csv" {
 		customTags = parseCsv(tagString)

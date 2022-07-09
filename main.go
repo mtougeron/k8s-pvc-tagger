@@ -43,16 +43,18 @@ import (
 )
 
 var (
-	buildVersion     string = ""
-	buildTime        string = ""
-	debugEnv         string = os.Getenv("DEBUG")
-	logFormatEnv     string = os.Getenv("LOG_FORMAT")
-	debug            bool
-	defaultTags      map[string]string
-	annotationPrefix string = "k8s-pvc-tagger"
-	watchNamespace   string
-	tagFormat        string = "json"
-	allowAllTags     bool
+	buildVersion            string = ""
+	buildTime               string = ""
+	debugEnv                string = os.Getenv("DEBUG")
+	logFormatEnv            string = os.Getenv("LOG_FORMAT")
+	debug                   bool
+	defaultTags             map[string]string
+	defaultAnnotationPrefix string = "k8s-pvc-tagger"
+	annotationPrefix        string = "k8s-pvc-tagger"
+	legacyAnnotationPrefix  string = "aws-ebs-tagger"
+	watchNamespace          string
+	tagFormat               string = "json"
+	allowAllTags            bool
 
 	promActionsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "k8s_pvc_tagger_actions_total",
