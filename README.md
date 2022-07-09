@@ -24,7 +24,7 @@ The `k8s-pvc-tagger` watches for new PersistentVolumeClaims and when new AWS EBS
 
 `k8s-pvc-tagger/tags` - A json encoded key/value map of the tags to set on the EBS Volume (in addition to the `--default-tags`). It can also be used to override the values set in the `--default-tags`
 
-NOTE: Until version `v1.1.0` the legacy annotation prefix of `aws-ebs-tagger` will continue to be supported for aws-ebs volumes ONLY.
+NOTE: Until version `v1.2.0` the legacy annotation prefix of `aws-ebs-tagger` will continue to be supported for aws-ebs volumes ONLY.
 
 #### Examples
 
