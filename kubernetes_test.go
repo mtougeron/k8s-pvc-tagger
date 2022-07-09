@@ -27,6 +27,8 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
+var dummyStorageClassName string = "fakeName"
+
 func Test_parseAWSVolumeID(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -103,6 +105,7 @@ func Test_provisionedByAwsEbs(t *testing.T) {
 
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName("my-pvc")
+	pvc.Spec.StorageClassName = &dummyStorageClassName
 
 	tests := []struct {
 		name        string
@@ -144,6 +147,7 @@ func Test_buildTags(t *testing.T) {
 
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName("my-pvc")
+	pvc.Spec.StorageClassName = &dummyStorageClassName
 
 	tests := []struct {
 		name         string
@@ -154,8 +158,22 @@ func Test_buildTags(t *testing.T) {
 		tagFormat    string
 	}{
 		{
+			name:         "ignore annotation set legacy",
+			defaultTags:  map[string]string{},
+			allowAllTags: false,
+			annotations:  map[string]string{"aws-ebs-tagger/ignore": ""},
+			want:         map[string]string{},
+		},
+		{
 			name:         "ignore annotation set",
 			defaultTags:  map[string]string{},
+			allowAllTags: false,
+			annotations:  map[string]string{"k8s-pvc-tagger/ignore": ""},
+			want:         map[string]string{},
+		},
+		{
+			name:         "ignore annotation set with default tags legacy",
+			defaultTags:  map[string]string{"foo": "bar"},
 			allowAllTags: false,
 			annotations:  map[string]string{"aws-ebs-tagger/ignore": ""},
 			want:         map[string]string{},
@@ -164,14 +182,21 @@ func Test_buildTags(t *testing.T) {
 			name:         "ignore annotation set with default tags",
 			defaultTags:  map[string]string{"foo": "bar"},
 			allowAllTags: false,
-			annotations:  map[string]string{"aws-ebs-tagger/ignore": ""},
+			annotations:  map[string]string{"k8s-pvc-tagger/ignore": ""},
+			want:         map[string]string{},
+		},
+		{
+			name:         "ignore annotation set with tags annotation set legacy",
+			defaultTags:  map[string]string{},
+			allowAllTags: false,
+			annotations:  map[string]string{"aws-ebs-tagger/ignore": "exists", "aws-ebs-tagger/tags": "{\"foo\": \"bar\"}"},
 			want:         map[string]string{},
 		},
 		{
 			name:         "ignore annotation set with tags annotation set",
 			defaultTags:  map[string]string{},
 			allowAllTags: false,
-			annotations:  map[string]string{"aws-ebs-tagger/ignore": "exists", "aws-ebs-tagger/tags": "{\"foo\": \"bar\"}"},
+			annotations:  map[string]string{"k8s-pvc-tagger/ignore": "exists", "k8s-pvc-tagger/tags": "{\"foo\": \"bar\"}"},
 			want:         map[string]string{},
 		},
 		{
@@ -189,56 +214,105 @@ func Test_buildTags(t *testing.T) {
 			want:         map[string]string{},
 		},
 		{
-			name:         "tags annotation set empty with no default tags",
+			name:         "tags annotation set empty with no default tags legacy",
 			defaultTags:  map[string]string{},
 			allowAllTags: false,
 			annotations:  map[string]string{"aws-ebs-tagger/tags": ""},
 			want:         map[string]string{},
 		},
 		{
-			name:         "tags annotation set with no default tags",
+			name:         "tags annotation set empty with no default tags",
+			defaultTags:  map[string]string{},
+			allowAllTags: false,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": ""},
+			want:         map[string]string{},
+		},
+		{
+			name:         "tags annotation set with no default tags legacy",
 			defaultTags:  map[string]string{},
 			allowAllTags: false,
 			annotations:  map[string]string{"aws-ebs-tagger/tags": "{\"foo\": \"bar\"}"},
 			want:         map[string]string{"foo": "bar"},
 		},
 		{
-			name:         "tags annotation set with default tags",
+			name:         "tags annotation set with no default tags",
+			defaultTags:  map[string]string{},
+			allowAllTags: false,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "{\"foo\": \"bar\"}"},
+			want:         map[string]string{"foo": "bar"},
+		},
+		{
+			name:         "tags annotation set with default tags legacy",
 			defaultTags:  map[string]string{"foo": "bar"},
 			allowAllTags: false,
 			annotations:  map[string]string{"aws-ebs-tagger/tags": "{\"something\": \"else\"}"},
 			want:         map[string]string{"foo": "bar", "something": "else"},
 		},
 		{
-			name:         "tags annotation set with default tags with override",
+			name:         "tags annotation set with default tags",
+			defaultTags:  map[string]string{"foo": "bar"},
+			allowAllTags: false,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "{\"something\": \"else\"}"},
+			want:         map[string]string{"foo": "bar", "something": "else"},
+		},
+		{
+			name:         "tags annotation set with default tags with override legacy",
 			defaultTags:  map[string]string{"foo": "foo"},
 			allowAllTags: false,
 			annotations:  map[string]string{"aws-ebs-tagger/tags": "{\"foo\": \"bar\", \"something\": \"else\"}"},
 			want:         map[string]string{"foo": "bar", "something": "else"},
 		},
 		{
-			name:         "tags annotation invalid json with no default tags",
+			name:         "tags annotation set with default tags with override",
+			defaultTags:  map[string]string{"foo": "foo"},
+			allowAllTags: false,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "{\"foo\": \"bar\", \"something\": \"else\"}"},
+			want:         map[string]string{"foo": "bar", "something": "else"},
+		},
+		{
+			name:         "tags annotation invalid json with no default tags legacy",
 			defaultTags:  map[string]string{},
 			allowAllTags: false,
 			annotations:  map[string]string{"aws-ebs-tagger/tags": "'asdas:\"asdasd\""},
 			want:         map[string]string{},
 		},
 		{
-			name:         "tags annotation invalid json with default tags",
+			name:         "tags annotation invalid json with no default tags",
+			defaultTags:  map[string]string{},
+			allowAllTags: false,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "'asdas:\"asdasd\""},
+			want:         map[string]string{},
+		},
+		{
+			name:         "tags annotation invalid json with default tags legacy",
 			defaultTags:  map[string]string{"foo": "bar"},
 			allowAllTags: false,
 			annotations:  map[string]string{"aws-ebs-tagger/tags": "'asdas:\"asdasd\""},
 			want:         map[string]string{"foo": "bar"},
 		},
 		{
-			name:         "tags annotation set with invalid name with no default tags",
+			name:         "tags annotation invalid json with default tags",
+			defaultTags:  map[string]string{"foo": "bar"},
+			allowAllTags: false,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "'asdas:\"asdasd\""},
+			want:         map[string]string{"foo": "bar"},
+		},
+		{
+			name:         "tags annotation set with invalid name with no default tags legacy",
 			defaultTags:  map[string]string{},
 			allowAllTags: false,
 			annotations:  map[string]string{"aws-ebs-tagger/tags": "{\"foo\": \"bar\", \"kubernetes.io/foo\": \"bar\"}"},
 			want:         map[string]string{"foo": "bar"},
 		},
 		{
-			name:         "tags annotation set with invalid name but allowAllTags with no default tags",
+			name:         "tags annotation set with invalid name with no default tags",
+			defaultTags:  map[string]string{},
+			allowAllTags: false,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "{\"foo\": \"bar\", \"kubernetes.io/foo\": \"bar\"}"},
+			want:         map[string]string{"foo": "bar"},
+		},
+		{
+			name:         "tags annotation set with invalid name but allowAllTags with no default tags legacy",
 			defaultTags:  map[string]string{},
 			allowAllTags: true,
 			annotations:  map[string]string{"aws-ebs-tagger/tags": "{\"foo\": \"bar\", \"kubernetes.io/foo\": \"bar\"}"},
@@ -248,6 +322,20 @@ func Test_buildTags(t *testing.T) {
 			name:         "tags annotation set with invalid name but allowAllTags with no default tags",
 			defaultTags:  map[string]string{},
 			allowAllTags: true,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "{\"foo\": \"bar\", \"kubernetes.io/foo\": \"bar\"}"},
+			want:         map[string]string{"foo": "bar", "kubernetes.io/foo": "bar"},
+		},
+		{
+			name:         "tags annotation set with invalid name but allowAllTags with no default tags",
+			defaultTags:  map[string]string{},
+			allowAllTags: true,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "{\"foo\": \"bar\", \"Name\": \"bar\"}"},
+			want:         map[string]string{"foo": "bar", "Name": "bar"},
+		},
+		{
+			name:         "tags annotation set with invalid name but allowAllTags with no default tags legacy",
+			defaultTags:  map[string]string{},
+			allowAllTags: true,
 			annotations:  map[string]string{"aws-ebs-tagger/tags": "{\"foo\": \"bar\", \"Name\": \"bar\"}"},
 			want:         map[string]string{"foo": "bar", "Name": "bar"},
 		},
@@ -255,7 +343,7 @@ func Test_buildTags(t *testing.T) {
 			name:         "tags annotation set with invalid default tags",
 			defaultTags:  map[string]string{"kubernetes.io/foo": "bar"},
 			allowAllTags: false,
-			annotations:  map[string]string{"aws-ebs-tagger/tags": "{\"something\": \"else\"}"},
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "{\"something\": \"else\"}"},
 			want:         map[string]string{"something": "else"},
 		},
 		{
@@ -275,7 +363,7 @@ func Test_buildTags(t *testing.T) {
 			tagFormat:    "csv",
 		},
 		{
-			name:         "tags annotation set with default tags - csv",
+			name:         "tags annotation set with default tags - csv legacy",
 			defaultTags:  map[string]string{"foo": "bar"},
 			allowAllTags: false,
 			annotations:  map[string]string{"aws-ebs-tagger/tags": "something=else"},
@@ -283,7 +371,23 @@ func Test_buildTags(t *testing.T) {
 			tagFormat:    "csv",
 		},
 		{
+			name:         "tags annotation set with default tags - csv",
+			defaultTags:  map[string]string{"foo": "bar"},
+			allowAllTags: false,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "something=else"},
+			want:         map[string]string{"foo": "bar", "something": "else"},
+			tagFormat:    "csv",
+		},
+		{
 			name:         "tags annotation set with default tags with override - csv",
+			defaultTags:  map[string]string{"foo": "foo"},
+			allowAllTags: false,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "foo=bar,something=else"},
+			want:         map[string]string{"foo": "bar", "something": "else"},
+			tagFormat:    "csv",
+		},
+		{
+			name:         "tags annotation set with default tags with override - csv legacy",
 			defaultTags:  map[string]string{"foo": "foo"},
 			allowAllTags: false,
 			annotations:  map[string]string{"aws-ebs-tagger/tags": "foo=bar,something=else"},
@@ -294,12 +398,24 @@ func Test_buildTags(t *testing.T) {
 			name:         "tags annotation set with invalid tags - csv",
 			defaultTags:  map[string]string{},
 			allowAllTags: false,
-			annotations:  map[string]string{"aws-ebs-tagger/tags": "{\"foo\": \"bar\"}"},
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "{\"foo\": \"bar\"}"},
 			want:         map[string]string{},
 			tagFormat:    "csv",
 		},
-
-		// foo=bar,something=else
+		{
+			name:         "tags annotation set with legacy tag also annotation set",
+			defaultTags:  map[string]string{},
+			allowAllTags: false,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "{\"foo\": \"selected\"}", "aws-ebs-tagger/tags": "{\"foo\": \"notselected\"}"},
+			want:         map[string]string{"foo": "selected"},
+		},
+		{
+			name:         "tags annotation set but legacy ignore annotation set",
+			defaultTags:  map[string]string{},
+			allowAllTags: false,
+			annotations:  map[string]string{"k8s-pvc-tagger/tags": "{\"foo\": \"selected\"}", "aws-ebs-tagger/ignore": ""},
+			want:         map[string]string{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -325,6 +441,7 @@ func Test_annotationPrefix(t *testing.T) {
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName("my-pvc")
 	defaultAnnotationPrefix := annotationPrefix
+	pvc.Spec.StorageClassName = &dummyStorageClassName
 
 	tests := []struct {
 		name             string
@@ -341,10 +458,17 @@ func Test_annotationPrefix(t *testing.T) {
 			want:             map[string]string{},
 		},
 		{
-			name:             "annotationPrefix with different ignore",
+			name:             "annotationPrefix with different ignore legacy",
 			annotationPrefix: "something-else",
 			defaultTags:      map[string]string{"foo": "bar"},
 			annotations:      map[string]string{"aws-ebs-tagger/ignore": ""},
+			want:             map[string]string{"foo": "bar"},
+		},
+		{
+			name:             "annotationPrefix with different ignore",
+			annotationPrefix: "something-else",
+			defaultTags:      map[string]string{"foo": "bar"},
+			annotations:      map[string]string{"k8s-pvc-tagger/ignore": ""},
 			want:             map[string]string{"foo": "bar"},
 		},
 		{
@@ -355,10 +479,17 @@ func Test_annotationPrefix(t *testing.T) {
 			want:             map[string]string{"foo": "bar", "something": "else"},
 		},
 		{
-			name:             "annotationPrefix with default and different custom tags",
+			name:             "annotationPrefix with default and different custom tags legacy",
 			annotationPrefix: "something-else",
 			defaultTags:      map[string]string{"foo": "bar"},
 			annotations:      map[string]string{"aws-ebs-tagger/tags": "{\"something\": \"else\"}"},
+			want:             map[string]string{"foo": "bar"},
+		},
+		{
+			name:             "annotationPrefix with default and different custom tags",
+			annotationPrefix: "something-else",
+			defaultTags:      map[string]string{"foo": "bar"},
+			annotations:      map[string]string{"k8s-pvc-tagger/tags": "{\"something\": \"else\"}"},
 			want:             map[string]string{"foo": "bar"},
 		},
 	}
@@ -451,6 +582,7 @@ func Test_processPersistentVolumeClaim(t *testing.T) {
 			var pvSpec corev1.PersistentVolumeSpec
 			if tt.provisionedBy == "ebs.csi.aws.com" {
 				pvSpec = corev1.PersistentVolumeSpec{
+					StorageClassName: dummyStorageClassName,
 					PersistentVolumeSource: corev1.PersistentVolumeSource{
 						CSI: &corev1.CSIPersistentVolumeSource{
 							VolumeHandle: tt.wantedVolumeID,
@@ -459,6 +591,7 @@ func Test_processPersistentVolumeClaim(t *testing.T) {
 				}
 			} else {
 				pvSpec = corev1.PersistentVolumeSpec{
+					StorageClassName: dummyStorageClassName,
 					PersistentVolumeSource: corev1.PersistentVolumeSource{
 						AWSElasticBlockStore: &corev1.AWSElasticBlockStoreVolumeSource{
 							VolumeID: tt.volumeID,
@@ -494,6 +627,7 @@ func Test_templatedTags(t *testing.T) {
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName("my-pvc")
 	pvc.SetNamespace("my-namespace")
+	pvc.Spec.StorageClassName = &dummyStorageClassName
 
 	tests := []struct {
 		name        string

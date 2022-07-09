@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
+  name: {{ include "k8s-pvc-tagger.fullname" . }}
   labels:
-    {{- include "k8s-aws-ebs-tagger.labels" . | nindent 4 }}
+    {{- include "k8s-pvc-tagger.labels" . | nindent 4 }}
 spec:
   type: ClusterIP
   ports:
@@ -14,4 +14,4 @@ spec:
     port: 8001
     targetPort: metrics
   selector:
-    {{- include "k8s-aws-ebs-tagger.selectorLabels" . | nindent 4 }}
+    {{- include "k8s-pvc-tagger.selectorLabels" . | nindent 4 }}

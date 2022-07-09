@@ -90,7 +90,7 @@ func getMetadataRegion() (string, error) {
 	return doc.Region, nil
 }
 
-func (client *Client) addVolumeTags(volumeID string, tags map[string]string) {
+func (client *Client) addVolumeTags(volumeID string, tags map[string]string, storageclass string) {
 	var ec2Tags []*ec2.Tag
 	for k, v := range tags {
 		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k), Value: aws.String(v)})
@@ -103,14 +103,16 @@ func (client *Client) addVolumeTags(volumeID string, tags map[string]string) {
 	})
 	if err != nil {
 		log.Errorln("Could not create tags for volumeID:", volumeID, err)
-		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
+		promActionsLegacyTotal.With(prometheus.Labels{"status": "error"}).Inc()
 		return
 	}
 
-	promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
+	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
+	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
 }
 
-func (client *Client) deleteVolumeTags(volumeID string, tags []string) {
+func (client *Client) deleteVolumeTags(volumeID string, tags []string, storageclass string) {
 	var ec2Tags []*ec2.Tag
 	for _, k := range tags {
 		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k)})
@@ -123,9 +125,11 @@ func (client *Client) deleteVolumeTags(volumeID string, tags []string) {
 	})
 	if err != nil {
 		log.Errorln("Could not delete tags for volumeID:", volumeID, err)
-		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
+		promActionsLegacyTotal.With(prometheus.Labels{"status": "error"}).Inc()
 		return
 	}
 
-	promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
+	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
+	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
 }
