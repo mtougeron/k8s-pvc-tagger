@@ -180,6 +180,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	if _, ok := annotations[annotationPrefix+"/ignore"]; ok {
 		log.Debugln(annotationPrefix + "/ignore annotation is set")
 		promIgnoredTotal.Inc()
+		promIgnoredLegacyTotal.Inc()
 		return renderTagTemplates(pvc, tags)
 	}
 
@@ -189,6 +190,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 			if !allowAllTags {
 				log.Warnln(k, "is a restricted tag. Skipping...")
 				promInvalidTagsTotal.Inc()
+				promInvalidTagsLegacyTotal.Inc()
 				continue
 			} else {
 				log.Warnln(k, "is a restricted tag but still allowing it to be set...")
@@ -216,6 +218,7 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 			if !allowAllTags {
 				log.Warnln(k, "is a restricted tag. Skipping...")
 				promInvalidTagsTotal.Inc()
+				promInvalidTagsLegacyTotal.Inc()
 				continue
 			} else {
 				log.Warnln(k, "is a restricted tag but still allowing it to be set...")
