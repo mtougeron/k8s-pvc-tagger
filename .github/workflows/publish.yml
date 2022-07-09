@@ -39,7 +39,7 @@ jobs:
         id: docker_meta
         uses: crazy-max/ghaction-docker-meta@v1
         with:
-          images: ${{ secrets.DOCKER_HUB_USERNAME }}/k8s-aws-ebs-tagger,ghcr.io/${{ github.repository_owner }}/k8s-aws-ebs-tagger,${{ secrets.DOCKER_HUB_USERNAME }}/k8s-pvc-tagger,ghcr.io/${{ github.repository_owner }}/k8s-pvc-tagger
+          images: ${{ secrets.DOCKER_HUB_USERNAME }}/k8s-pvc-tagger,ghcr.io/${{ github.repository_owner }}/k8s-pvc-tagger
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v1
