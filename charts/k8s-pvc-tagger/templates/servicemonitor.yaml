@@ -2,9 +2,9 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
+  name: {{ include "k8s-pvc-tagger.fullname" . }}
   labels:
-    {{- include "k8s-aws-ebs-tagger.labels" . | nindent 4 }}
+    {{- include "k8s-pvc-tagger.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitorLabels }}
       {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -17,5 +17,5 @@ spec:
     - {{ .Release.Namespace }}
   selector:
     matchLabels:
-      {{- include "k8s-aws-ebs-tagger.selectorLabels" . | nindent 6 }}
+      {{- include "k8s-pvc-tagger.selectorLabels" . | nindent 6 }}
 {{- end -}}
