@@ -49,7 +49,7 @@ type EFSClient struct {
 	efsiface.EFSAPI
 }
 
-// Client ebs interface
+// Client EC2 client interface
 type EBSClient struct {
 	ec2iface.EC2API
 }
@@ -102,7 +102,7 @@ func getMetadataRegion() (string, error) {
 	return doc.Region, nil
 }
 
-func (client *EFSClient) addEFSVolumeTags(volumeID string, tags map[string]string) {
+func (client *EFSClient) addEFSVolumeTags(volumeID string, tags map[string]string, storageclass string) {
 	var efsTags []*efs.Tag
 	for k, v := range tags {
 		efsTags = append(efsTags, &efs.Tag{Key: aws.String(k), Value: aws.String(v)})
@@ -115,14 +115,16 @@ func (client *EFSClient) addEFSVolumeTags(volumeID string, tags map[string]strin
 	})
 	if err != nil {
 		log.Errorln("Could not EFS create tags for volumeID:", volumeID, err)
-		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
+		promActionsLegacyTotal.With(prometheus.Labels{"status": "error"}).Inc()
 		return
 	}
 
-	promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
+	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
+	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
 }
 
-func (client *EFSClient) deleteEFSVolumeTags(volumeID string, tags []string) {
+func (client *EFSClient) deleteEFSVolumeTags(volumeID string, tags []string, storageclass string) {
 	var efsTags []*string
 	for _, k := range tags {
 		efsTags = append(efsTags, aws.String(k))
@@ -135,14 +137,16 @@ func (client *EFSClient) deleteEFSVolumeTags(volumeID string, tags []string) {
 	})
 	if err != nil {
 		log.Errorln("Could not EFS delete tags for volumeID:", volumeID, err)
-		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
+		promActionsLegacyTotal.With(prometheus.Labels{"status": "error"}).Inc()
 		return
 	}
 
-	promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
+	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
+	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
 }
 
-func (client *EBSClient) addEBSVolumeTags(volumeID string, tags map[string]string) {
+func (client *EBSClient) addEBSVolumeTags(volumeID string, tags map[string]string, storageclass string) {
 	var ec2Tags []*ec2.Tag
 	for k, v := range tags {
 		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k), Value: aws.String(v)})
@@ -161,10 +165,10 @@ func (client *EBSClient) addEBSVolumeTags(volumeID string, tags map[string]strin
 	}
 
 	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
-	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
+	promActionsLegacyTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
 }
 
-func (client *EBSClient) deleteEBSVolumeTags(volumeID string, tags []string) {
+func (client *EBSClient) deleteEBSVolumeTags(volumeID string, tags []string, storageclass string) {
 	var ec2Tags []*ec2.Tag
 	for _, k := range tags {
 		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k)})
@@ -183,5 +187,5 @@ func (client *EBSClient) deleteEBSVolumeTags(volumeID string, tags []string) {
 	}
 
 	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
-	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
+	promActionsLegacyTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
 }

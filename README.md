@@ -6,13 +6,13 @@ A utility to tag PVC volumes based on the PVC's `k8s-pvc-tagger/tags` annotation
 
 ![Go](https://github.com/mtougeron/k8s-pvc-tagger/workflows/Go/badge.svg) ![Gosec](https://github.com/mtougeron/k8s-pvc-tagger/workflows/Gosec/badge.svg) ![ContainerScan](https://github.com/mtougeron/k8s-pvc-tagger/workflows/ContainerScan/badge.svg) [![GitHub tag](https://img.shields.io/github/v/tag/mtougeron/k8s-pvc-tagger)](https://github.com/mtougeron/k8s-pvc-tagger/tags/)
 
-The `k8s-pvc-tagger` watches for new PersistentVolumeClaims and when new AWS EBS volumes are created it adds tags based on the PVC's `k8s-pvc-tagger/tags` annotation to the created EBS volume. Other cloud provider and volume times are coming soon.
+The `k8s-pvc-tagger` watches for new PersistentVolumeClaims and when new AWS EBS/EFS volumes are created it adds tags based on the PVC's `k8s-pvc-tagger/tags` annotation to the created EBS/EFS volume. Other cloud provider and volume times are coming soon.
 
 ### How to set tags
 
 #### cmdline args
 
-`--default-tags` - A json or csv encoded key/value map of the tags to set by default on EBS Volumes. Values can be overwritten by the `k8s-pvc-tagger/tags` annotation.
+`--default-tags` - A json or csv encoded key/value map of the tags to set by default on EBS/EFS Volumes. Values can be overwritten by the `k8s-pvc-tagger/tags` annotation.
 
 `--tag-format` - Either `json` or `csv` for the format the `k8s-pvc-tagger/tags` and `--default-tags` are in.
 
@@ -22,7 +22,7 @@ The `k8s-pvc-tagger` watches for new PersistentVolumeClaims and when new AWS EBS
 
 `k8s-pvc-tagger/ignore` - When this annotation is set (any value) it will ignore this PVC and not add any tags to it
 
-`k8s-pvc-tagger/tags` - A json encoded key/value map of the tags to set on the EBS Volume (in addition to the `--default-tags`). It can also be used to override the values set in the `--default-tags`
+`k8s-pvc-tagger/tags` - A json encoded key/value map of the tags to set on the EBS/EFS Volume (in addition to the `--default-tags`). It can also be used to override the values set in the `--default-tags`
 
 NOTE: Until version `v1.2.0` the legacy annotation prefix of `aws-ebs-tagger` will continue to be supported for aws-ebs volumes ONLY.
 
@@ -30,11 +30,11 @@ NOTE: Until version `v1.2.0` the legacy annotation prefix of `aws-ebs-tagger` wi
 
 1. The cmdline arg `--default-tags={"me": "touge"}` and no annotation will set the tag `me=touge`
 
-2. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `k8s-pvc-tagger/tags: | {"me": "someone else", "another tag": "some value"}` will create the tags `me=someone else` and `another tag=some value` on the EBS Volume
+2. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `k8s-pvc-tagger/tags: | {"me": "someone else", "another tag": "some value"}` will create the tags `me=someone else` and `another tag=some value` on the EBS/EFS Volume
 
-3. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `k8s-pvc-tagger/ignore: ""` will not set any tags on the EBS Volume
+3. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `k8s-pvc-tagger/ignore: ""` will not set any tags on the EBS/EFS Volume
 
-4. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `k8s-pvc-tagger/tags: | {"cost-center": "abc", "environment": "prod"}` will create the tags `me=touge`, `cost-center=abc` and `environment=prod` on the EBS Volume
+4. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `k8s-pvc-tagger/tags: | {"cost-center": "abc", "environment": "prod"}` will create the tags `me=touge`, `cost-center=abc` and `environment=prod` on the EBS/EFS Volume
 
 #### ignored tags
 

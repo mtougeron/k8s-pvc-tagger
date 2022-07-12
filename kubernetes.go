@@ -116,10 +116,10 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				return
 			}
 			if provisionedByAwsEfs(pvc) {
-				efsClient.addEFSVolumeTags(parseAWSEFSVolumeID(volumeID), tags)
+				efsClient.addEFSVolumeTags(parseAWSEFSVolumeID(volumeID), tags, *pvc.Spec.StorageClassName)
 			}
 			if provisionedByAwsEbs(pvc) {
-				ec2Client.addEBSVolumeTags(volumeID, tags)
+				ec2Client.addEBSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
 			}
 		},
 		UpdateFunc: func(old, new interface{}) {
@@ -149,7 +149,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			}
 
 			if provisionedByAwsEfs(newPVC) {
-				efsClient.addEFSVolumeTags(parseAWSEFSVolumeID(volumeID), tags)
+				efsClient.addEFSVolumeTags(parseAWSEFSVolumeID(volumeID), tags, *newPVC.Spec.StorageClassName)
 			}
 			if provisionedByAwsEbs(newPVC) {
 				ec2Client.addEBSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
@@ -164,7 +164,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			}
 			if len(deletedTags) > 0 {
 				if provisionedByAwsEfs(newPVC) {
-					efsClient.deleteEFSVolumeTags(parseAWSEFSVolumeID(volumeID), deletedTags)
+					efsClient.deleteEFSVolumeTags(parseAWSEFSVolumeID(volumeID), deletedTags, *oldPVC.Spec.StorageClassName)
 				}
 				if provisionedByAwsEbs(newPVC) {
 					ec2Client.deleteEBSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
