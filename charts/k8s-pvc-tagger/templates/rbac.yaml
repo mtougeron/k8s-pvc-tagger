@@ -3,7 +3,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
+  name: {{ include "k8s-pvc-tagger.fullname" . }}
 rules:
   - apiGroups:
     - coordination.k8s.io
@@ -30,7 +30,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ include "k8s-aws-ebs-tagger.fullname" $ }}-pvc
+  name: {{ include "k8s-pvc-tagger.fullname" $ }}-pvc
   namespace: {{ . }}
 rules:
   - apiGroups:
@@ -45,15 +45,15 @@ rules:
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: {{ include "k8s-aws-ebs-tagger.fullname" $ }}-pvc
+  name: {{ include "k8s-pvc-tagger.fullname" $ }}-pvc
   namespace: {{ . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ include "k8s-aws-ebs-tagger.serviceAccountName" $ }}
+    name: {{ include "k8s-pvc-tagger.serviceAccountName" $ }}
     namespace: {{ $.Release.Namespace }}
 roleRef:
   kind: Role
-  name: {{ include "k8s-aws-ebs-tagger.fullname" $ }}-pvc
+  name: {{ include "k8s-pvc-tagger.fullname" $ }}-pvc
   apiGroup: rbac.authorization.k8s.io
 {{- end }}
 {{- end }}
@@ -61,7 +61,7 @@ roleRef:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
+  name: {{ include "k8s-pvc-tagger.fullname" . }}
 rules:
   - apiGroups:
     - ""
@@ -78,26 +78,26 @@ rules:
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
+  name: {{ include "k8s-pvc-tagger.fullname" . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ include "k8s-aws-ebs-tagger.serviceAccountName" . }}
+    name: {{ include "k8s-pvc-tagger.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 roleRef:
   kind: ClusterRole
-  name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
+  name: {{ include "k8s-pvc-tagger.fullname" . }}
   apiGroup: rbac.authorization.k8s.io
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
+  name: {{ include "k8s-pvc-tagger.fullname" . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ include "k8s-aws-ebs-tagger.serviceAccountName" . }}
+    name: {{ include "k8s-pvc-tagger.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 roleRef:
   kind: Role
-  name: {{ include "k8s-aws-ebs-tagger.fullname" . }}
+  name: {{ include "k8s-pvc-tagger.fullname" . }}
   apiGroup: rbac.authorization.k8s.io
 {{- end }}

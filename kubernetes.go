@@ -23,14 +23,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"html/template"
 	"io/ioutil"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
-
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -39,6 +35,10 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 )
 
 var (
@@ -115,10 +115,10 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				return
 			}
 			if provisionedByAwsEfs(pvc) {
-				efsClient.addEFSVolumeTags(parseAWSEFSVolumeID(volumeID), tags)
+				efsClient.addEFSVolumeTags(parseAWSEFSVolumeID(volumeID), tags, *pvc.Spec.StorageClassName)
 			}
 			if provisionedByAwsEbs(pvc) {
-				ec2Client.addEBSVolumeTags(volumeID, tags)
+				ec2Client.addEBSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
 			}
 		},
 		UpdateFunc: func(old, new interface{}) {
@@ -148,10 +148,10 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			}
 
 			if provisionedByAwsEfs(newPVC) {
-				efsClient.addEFSVolumeTags(parseAWSEFSVolumeID(volumeID), tags)
+				efsClient.addEFSVolumeTags(parseAWSEFSVolumeID(volumeID), tags, *newPVC.Spec.StorageClassName)
 			}
 			if provisionedByAwsEbs(newPVC) {
-				ec2Client.addEBSVolumeTags(volumeID, tags)
+				ec2Client.addEBSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
 			}
 
 			oldTags := buildTags(oldPVC)
@@ -163,10 +163,10 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			}
 			if len(deletedTags) > 0 {
 				if provisionedByAwsEfs(newPVC) {
-					efsClient.deleteEFSVolumeTags(parseAWSEFSVolumeID(volumeID), deletedTags)
+					efsClient.deleteEFSVolumeTags(parseAWSEFSVolumeID(volumeID), deletedTags, *oldPVC.Spec.StorageClassName)
 				}
 				if provisionedByAwsEbs(newPVC) {
-					ec2Client.deleteEBSVolumeTags(volumeID, deletedTags)
+					ec2Client.deleteEBSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
 				}
 			}
 		},
@@ -200,13 +200,24 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 	tags := map[string]string{}
 	customTags := map[string]string{}
 	var tagString string
+	var legacyTagString string
 
 	annotations := pvc.GetAnnotations()
 	// Skip if the annotation says to ignore this PVC
 	if _, ok := annotations[annotationPrefix+"/ignore"]; ok {
 		log.Debugln(annotationPrefix + "/ignore annotation is set")
-		promIgnoredTotal.Inc()
+		promIgnoredTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
+		promIgnoredLegacyTotal.Inc()
 		return renderTagTemplates(pvc, tags)
+	}
+	// if the annotationPrefix has been changed, then we don't compare to the legacyAnnotationPrefix anymore
+	if annotationPrefix == defaultAnnotationPrefix {
+		if _, ok := annotations[legacyAnnotationPrefix+"/ignore"]; ok {
+			log.Debugln(legacyAnnotationPrefix + "/ignore annotation is set")
+			promIgnoredTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
+			promIgnoredLegacyTotal.Inc()
+			return renderTagTemplates(pvc, tags)
+		}
 	}
 
 	// Set the default tags
@@ -214,7 +225,8 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 		if !isValidTagName(k) {
 			if !allowAllTags {
 				log.Warnln(k, "is a restricted tag. Skipping...")
-				promInvalidTagsTotal.Inc()
+				promInvalidTagsTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
+				promInvalidTagsLegacyTotal.Inc()
 				continue
 			} else {
 				log.Warnln(k, "is a restricted tag but still allowing it to be set...")
@@ -223,10 +235,22 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 		tags[k] = v
 	}
 
+	var legacyOk bool
 	tagString, ok := annotations[annotationPrefix+"/tags"]
-	if !ok {
-		log.Debugln("Does not have " + annotationPrefix + "/tags annotation")
+	// if the annotationPrefix has been changed, then we don't compare to the legacyAnnotationPrefix anymore
+	if annotationPrefix == defaultAnnotationPrefix {
+		legacyTagString, legacyOk = annotations[legacyAnnotationPrefix+"/tags"]
+	} else {
+		legacyOk = false
+		legacyTagString = ""
+	}
+	if !ok && !legacyOk {
+		log.Debugln("Does not have " + annotationPrefix + "/tags or legacy " + legacyAnnotationPrefix + "/tags annotation")
 		return renderTagTemplates(pvc, tags)
+	} else if ok && legacyOk {
+		log.Warnln("Has both " + annotationPrefix + "/tags AND legacy " + legacyAnnotationPrefix + "/tags annotation. Using newer " + annotationPrefix + "/tags annotation")
+	} else if legacyOk && !ok {
+		tagString = legacyTagString
 	}
 	if tagFormat == "csv" {
 		customTags = parseCsv(tagString)
@@ -241,7 +265,8 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 		if !isValidTagName(k) {
 			if !allowAllTags {
 				log.Warnln(k, "is a restricted tag. Skipping...")
-				promInvalidTagsTotal.Inc()
+				promInvalidTagsTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
+				promInvalidTagsLegacyTotal.Inc()
 				continue
 			} else {
 				log.Warnln(k, "is a restricted tag but still allowing it to be set...")
