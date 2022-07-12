@@ -102,6 +102,50 @@ func getMetadataRegion() (string, error) {
 	return doc.Region, nil
 }
 
+func (client *EBSClient) addEBSVolumeTags(volumeID string, tags map[string]string, storageclass string) {
+	var ec2Tags []*ec2.Tag
+	for k, v := range tags {
+		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k), Value: aws.String(v)})
+	}
+
+	// Add tags to the volume
+	_, err := client.CreateTags(&ec2.CreateTagsInput{
+		Resources: []*string{aws.String(volumeID)},
+		Tags:      ec2Tags,
+	})
+	if err != nil {
+		log.Errorln("Could not create tags for volumeID:", volumeID, err)
+		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
+		promActionsLegacyTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		return
+	}
+
+	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
+	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
+}
+
+func (client *EBSClient) deleteEBSVolumeTags(volumeID string, tags []string, storageclass string) {
+	var ec2Tags []*ec2.Tag
+	for _, k := range tags {
+		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k)})
+	}
+
+	// Add tags to the volume
+	_, err := client.DeleteTags(&ec2.DeleteTagsInput{
+		Resources: []*string{aws.String(volumeID)},
+		Tags:      ec2Tags,
+	})
+	if err != nil {
+		log.Errorln("Could not EBS delete tags for volumeID:", volumeID, err)
+		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
+		promActionsLegacyTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		return
+	}
+
+	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
+	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
+}
+
 func (client *EFSClient) addEFSVolumeTags(volumeID string, tags map[string]string, storageclass string) {
 	var efsTags []*efs.Tag
 	for k, v := range tags {
@@ -144,48 +188,4 @@ func (client *EFSClient) deleteEFSVolumeTags(volumeID string, tags []string, sto
 
 	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
 	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
-}
-
-func (client *EBSClient) addEBSVolumeTags(volumeID string, tags map[string]string, storageclass string) {
-	var ec2Tags []*ec2.Tag
-	for k, v := range tags {
-		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k), Value: aws.String(v)})
-	}
-
-	// Add tags to the volume
-	_, err := client.CreateTags(&ec2.CreateTagsInput{
-		Resources: []*string{aws.String(volumeID)},
-		Tags:      ec2Tags,
-	})
-	if err != nil {
-		log.Errorln("Could not create tags for volumeID:", volumeID, err)
-		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
-		promActionsLegacyTotal.With(prometheus.Labels{"status": "error"}).Inc()
-		return
-	}
-
-	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
-	promActionsLegacyTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
-}
-
-func (client *EBSClient) deleteEBSVolumeTags(volumeID string, tags []string, storageclass string) {
-	var ec2Tags []*ec2.Tag
-	for _, k := range tags {
-		ec2Tags = append(ec2Tags, &ec2.Tag{Key: aws.String(k)})
-	}
-
-	// Add tags to the volume
-	_, err := client.DeleteTags(&ec2.DeleteTagsInput{
-		Resources: []*string{aws.String(volumeID)},
-		Tags:      ec2Tags,
-	})
-	if err != nil {
-		log.Errorln("Could not EBS delete tags for volumeID:", volumeID, err)
-		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
-		promActionsLegacyTotal.With(prometheus.Labels{"status": "error"}).Inc()
-		return
-	}
-
-	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
-	promActionsLegacyTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
 }
