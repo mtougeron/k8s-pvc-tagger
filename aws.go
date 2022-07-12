@@ -154,12 +154,14 @@ func (client *EBSClient) addEBSVolumeTags(volumeID string, tags map[string]strin
 		Tags:      ec2Tags,
 	})
 	if err != nil {
-		log.Errorln("Could not create EBS tags for volumeID:", volumeID, err)
-		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		log.Errorln("Could not create tags for volumeID:", volumeID, err)
+		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
+		promActionsLegacyTotal.With(prometheus.Labels{"status": "error"}).Inc()
 		return
 	}
 
-	promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
+	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
+	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
 }
 
 func (client *EBSClient) deleteEBSVolumeTags(volumeID string, tags []string) {
@@ -175,9 +177,11 @@ func (client *EBSClient) deleteEBSVolumeTags(volumeID string, tags []string) {
 	})
 	if err != nil {
 		log.Errorln("Could not EBS delete tags for volumeID:", volumeID, err)
-		promActionsTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
+		promActionsLegacyTotal.With(prometheus.Labels{"status": "error"}).Inc()
 		return
 	}
 
-	promActionsTotal.With(prometheus.Labels{"status": "success"}).Inc()
+	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
+	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
 }
