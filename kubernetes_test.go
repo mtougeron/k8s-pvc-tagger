@@ -754,19 +754,11 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 			})
 
 			var pvSpec corev1.PersistentVolumeSpec
-			if tt.provisionedBy == "ebs.csi.aws.com" || tt.provisionedBy == "efs.csi.aws.com" {
+			if tt.provisionedBy == "efs.csi.aws.com" {
 				pvSpec = corev1.PersistentVolumeSpec{
 					PersistentVolumeSource: corev1.PersistentVolumeSource{
 						CSI: &corev1.CSIPersistentVolumeSource{
-							VolumeHandle: tt.wantedVolumeID,
-						},
-					},
-				}
-			} else {
-				pvSpec = corev1.PersistentVolumeSpec{
-					PersistentVolumeSource: corev1.PersistentVolumeSource{
-						AWSElasticBlockStore: &corev1.AWSElasticBlockStoreVolumeSource{
-							VolumeID: tt.volumeID,
+							VolumeHandle: tt.volumeID,
 						},
 					},
 				}
