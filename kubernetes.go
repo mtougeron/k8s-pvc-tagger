@@ -116,7 +116,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				return
 			}
 			if provisionedByAwsEfs(pvc) {
-				efsClient.addEFSVolumeTags(parseAWSEFSVolumeID(volumeID), tags, *pvc.Spec.StorageClassName)
+				efsClient.addEFSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
 			}
 			if provisionedByAwsEbs(pvc) {
 				ec2Client.addEBSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
@@ -149,7 +149,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			}
 
 			if provisionedByAwsEfs(newPVC) {
-				efsClient.addEFSVolumeTags(parseAWSEFSVolumeID(volumeID), tags, *newPVC.Spec.StorageClassName)
+				efsClient.addEFSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
 			}
 			if provisionedByAwsEbs(newPVC) {
 				ec2Client.addEBSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
@@ -164,7 +164,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			}
 			if len(deletedTags) > 0 {
 				if provisionedByAwsEfs(newPVC) {
-					efsClient.deleteEFSVolumeTags(parseAWSEFSVolumeID(volumeID), deletedTags, *oldPVC.Spec.StorageClassName)
+					efsClient.deleteEFSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
 				}
 				if provisionedByAwsEbs(newPVC) {
 					ec2Client.deleteEBSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
@@ -363,8 +363,10 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 	if provisionedBy, ok := annotations["volume.beta.kubernetes.io/storage-provisioner"]; !ok {
 		log.Errorf("cannot get volume.beta.kubernetes.io/storage-provisioner annotation")
 		return "", nil, errors.New("cannot get volume.beta.kubernetes.io/storage-provisioner annotation")
-	} else if provisionedBy == "efs.csi.aws.com" || provisionedBy == "ebs.csi.aws.com" {
+	} else if provisionedBy == "ebs.csi.aws.com" {
 		volumeID = pv.Spec.PersistentVolumeSource.CSI.VolumeHandle
+	} else if provisionedBy == "efs.csi.aws.com" {
+		volumeID = parseAWSEFSVolumeID(pv.Spec.PersistentVolumeSource.CSI.VolumeHandle)
 	} else if provisionedBy == "kubernetes.io/aws-ebs" {
 		volumeID = parseAWSEBSVolumeID(pv.Spec.PersistentVolumeSource.AWSElasticBlockStore.VolumeID)
 	}
