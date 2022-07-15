@@ -144,17 +144,17 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 
 			log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Infoln("Need to reconcile tags")
 			volumeID, tags, err := processPersistentVolumeClaim(newPVC)
-			if err != nil || len(tags) == 0 {
+			if err != nil {
 				return
 			}
-
-			if provisionedByAwsEfs(newPVC) {
-				efsClient.addEFSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
+			if len(tags) > 0 {
+				if provisionedByAwsEfs(newPVC) {
+					efsClient.addEFSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
+				}
+				if provisionedByAwsEbs(newPVC) {
+					ec2Client.addEBSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
+				}
 			}
-			if provisionedByAwsEbs(newPVC) {
-				ec2Client.addEBSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
-			}
-
 			oldTags := buildTags(oldPVC)
 			var deletedTags []string
 			for k := range oldTags {
