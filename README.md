@@ -76,7 +76,7 @@ metadata:
 
 #### AWS IAM Role
 
-You need to create an AWS IAM Role that can be used by `k8s-pvc-tagger`. I recommend using a tool like [kube2iam](https://github.com/jtblin/kube2iam) instead of using an AWS access key/secret. An example policy is in [examples/iam-role.json](examples/iam-role.json).
+You need to create an AWS IAM Role that can be used by `k8s-pvc-tagger`. For EKS clusters, an [IAM Role for Service Accounts](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts-technical-overview.html) should be used instead of using an AWS access key/secret. For non-EKS clusters, I recommend using a tool like [kube2iam](https://github.com/jtblin/kube2iam). An example policy is in [examples/iam-role.json](examples/iam-role.json).
 
 #### Install via helm
 
@@ -90,6 +90,7 @@ helm install k8s-pvc-tagger mtougeron/k8s-pvc-tagger
 
 Images are available on the [GitHub Container Registry](https://github.com/users/mtougeron/packages/container/k8s-pvc-tagger/versions) and [DockerHub](https://hub.docker.com/r/mtougeron/k8s-pvc-tagger). Containers are published for `linux/amd64` & `linux/arm64`.
 
+The container images are signed with [sigstore/cosign](https://github.com/sigstore/cosign) and can be verified by running `COSIGN_EXPERIMENTAL=1 cosign verify ghcr.io/mtougeron/k8s-pvc-tagger:<tag>`
 
 ### Licensing
 
