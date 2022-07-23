@@ -17,7 +17,7 @@
             "Effect": "Allow",
             "Action": [
                 "elasticfilesystem:TagResource",
-                "elasticfilesystem:UntagResource",
+                "elasticfilesystem:UntagResource"
             ],
             "Resource": [
                 "arn:aws:elasticfilesystem:*:*:access-point/*"
