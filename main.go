@@ -126,7 +126,7 @@ func main() {
 	flag.StringVar(&leaseID, "lease-id", uuid.New().String(), "the holder identity name")
 	flag.StringVar(&leaseLockName, "lease-lock-name", "k8s-pvc-tagger", "the lease lock resource name")
 	flag.StringVar(&leaseLockNamespace, "lease-lock-namespace", os.Getenv("NAMESPACE"), "the lease lock resource namespace")
-	flag.StringVar(&defaultTagsString, "default-tags", "", "Default tags to add to EBS volume")
+	flag.StringVar(&defaultTagsString, "default-tags", "", "Default tags to add to EBS/EFS volume")
 	flag.StringVar(&tagFormat, "tag-format", "json", "Whether the tags are in json or csv format. Default: json")
 	flag.StringVar(&annotationPrefix, "annotation-prefix", "k8s-pvc-tagger", "Annotation prefix to check")
 	flag.StringVar(&watchNamespace, "watch-namespace", os.Getenv("WATCH_NAMESPACE"), "A specific namespace to watch (default is all namespaces)")
