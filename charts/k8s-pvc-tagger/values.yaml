@@ -76,6 +76,9 @@ annotationPrefix: ""
 # Default is all namespaces
 watchNamespace: ""
 
+# Define whereas PV must be tagged. This will add update verb on PersistentVolume
+propagateToPV: false
+
 serviceMonitor: false
 serviceMonitorLabels: {}
 

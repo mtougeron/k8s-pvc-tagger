@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"io/ioutil"
 	"os"
@@ -50,8 +51,9 @@ var (
 
 const (
 	// Matching strings for volume operations.
-	regexpAWSVolumeID = `^aws:\/\/\w{2}-\w{4,9}-\d\w\/(vol-\w+)$`
-	regexpEFSVolumeID = `^fs-\w+::(fsap-\w+)$`
+	regexpAWSVolumeID     = `^aws:\/\/\w{2}-\w{4,9}-\d\w\/(vol-\w+)$`
+	regexpEFSVolumeID     = `^fs-\w+::(fsap-\w+)$`
+	pvAnnotationTagFormat = "k8s-pvc-tagger/tag/%s"
 )
 
 type TagTemplate struct {
@@ -111,7 +113,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			}
 			log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Infoln("New PVC Added to Store")
 
-			volumeID, tags, err := processPersistentVolumeClaim(pvc)
+			volumeID, tags, pv, err := processPersistentVolumeClaim(pvc)
 			if err != nil || len(tags) == 0 {
 				return
 			}
@@ -120,6 +122,9 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			}
 			if provisionedByAwsEbs(pvc) {
 				ec2Client.addEBSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
+			}
+			if propagateToPv {
+				addPVAnnotationsLabelsAndTags(pvc, pv, tags)
 			}
 		},
 		UpdateFunc: func(old, new interface{}) {
@@ -143,7 +148,8 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			}
 
 			log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Infoln("Need to reconcile tags")
-			volumeID, tags, err := processPersistentVolumeClaim(newPVC)
+			volumeID, tags, pv, err := processPersistentVolumeClaim(newPVC)
+
 			if err != nil {
 				return
 			}
@@ -153,6 +159,9 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				}
 				if provisionedByAwsEbs(newPVC) {
 					ec2Client.addEBSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
+				}
+				if propagateToPv {
+					pv = addPVAnnotationsLabelsAndTags(newPVC, pv, tags)
 				}
 			}
 			oldTags := buildTags(oldPVC)
@@ -169,11 +178,68 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				if provisionedByAwsEbs(newPVC) {
 					ec2Client.deleteEBSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
 				}
+				if propagateToPv {
+					deletePVAnnotationsLabelsAndTags(oldPVC, pv, defaultTags)
+				}
 			}
 		},
 	})
 
 	informer.Run(ch)
+}
+
+// Add PV / Labels and computed Tags as annotations and return updated PV
+func addPVAnnotationsLabelsAndTags(pvc *corev1.PersistentVolumeClaim, pv *corev1.PersistentVolume, tags map[string]string) *corev1.PersistentVolume {
+
+	if pvc.ObjectMeta.Annotations != nil {
+		for key, value := range pvc.ObjectMeta.Annotations {
+			if isValidTagName(key) && isValidAnnotation(key) {
+				pv.ObjectMeta.Annotations[key] = value
+			}
+		}
+	}
+
+	if pvc.ObjectMeta.Labels != nil {
+		for key, value := range pvc.ObjectMeta.Labels {
+			if isValidTagName(key) {
+				pv.ObjectMeta.Labels[key] = value
+			}
+		}
+	}
+
+	for key, value := range tags {
+		if isValidTagName(key) {
+			pv.ObjectMeta.Annotations[fmt.Sprintf(pvAnnotationTagFormat, key)] = value
+		}
+	}
+
+	newPV, err := k8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+	if err != nil {
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "pv": pv.GetName()}).Errorln("Update PV labels / annotations failed:", err)
+		return nil
+	}
+	return newPV
+}
+
+func deletePVAnnotationsLabelsAndTags(pvc *corev1.PersistentVolumeClaim, pv *corev1.PersistentVolume, oldTags map[string]string) *corev1.PersistentVolume {
+	for key := range oldTags {
+		delete(pv.ObjectMeta.Annotations, fmt.Sprintf(pvAnnotationTagFormat, key))
+	}
+	pv, err := k8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+	if err != nil {
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "pv": pv.GetName()}).Errorln("Update PV labels / annotations failed:", err)
+	}
+	return pv
+}
+
+func isValidAnnotation(key string) bool {
+	var skipPVCAnnotationsForwardToPV = [4]string{"volume.beta.kubernetes.io", "volume.kubernetes.io", "pv.kubernetes.io", annotationPrefix}
+	for _, prefix := range skipPVCAnnotationsForwardToPV {
+		if strings.HasPrefix(strings.ToLower(key), prefix) {
+			return false
+		}
+	}
+	return true
 }
 
 func parseAWSEBSVolumeID(k8sVolumeID string) string {
@@ -343,7 +409,7 @@ func provisionedByAwsEbs(pvc *corev1.PersistentVolumeClaim) bool {
 	return false
 }
 
-func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, map[string]string, error) {
+func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, map[string]string, *corev1.PersistentVolume, error) {
 	tags := buildTags(pvc)
 
 	log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "tags": tags}).Debugln("PVC Tags")
@@ -351,18 +417,18 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 	pv, err := k8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvc.Spec.VolumeName, metav1.GetOptions{})
 	if err != nil {
 		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Errorln("Get PV from kubernetes cluster error:", err)
-		return "", nil, err
+		return "", nil, pv, err
 	}
 
 	var volumeID string
 	annotations := pvc.GetAnnotations()
 	if annotations == nil {
 		log.Errorf("cannot get PVC annotations")
-		return "", nil, errors.New("cannot get PVC annotations")
+		return "", nil, pv, errors.New("cannot get PVC annotations")
 	}
 	if provisionedBy, ok := annotations["volume.beta.kubernetes.io/storage-provisioner"]; !ok {
 		log.Errorf("cannot get volume.beta.kubernetes.io/storage-provisioner annotation")
-		return "", nil, errors.New("cannot get volume.beta.kubernetes.io/storage-provisioner annotation")
+		return "", nil, pv, errors.New("cannot get volume.beta.kubernetes.io/storage-provisioner annotation")
 	} else if provisionedBy == "ebs.csi.aws.com" {
 		volumeID = pv.Spec.PersistentVolumeSource.CSI.VolumeHandle
 	} else if provisionedBy == "efs.csi.aws.com" {
@@ -373,10 +439,10 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 	log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "volumeID": volumeID}).Debugln("parsed volumeID:", volumeID)
 	if len(volumeID) == 0 {
 		log.Errorf("Cannot parse VolumeID")
-		return "", nil, errors.New("cannot parse VolumeID")
+		return "", nil, pv, errors.New("cannot parse VolumeID")
 	}
 
-	return volumeID, tags, nil
+	return volumeID, tags, pv, nil
 }
 
 func getCurrentNamespace() string {

@@ -55,6 +55,7 @@ var (
 	watchNamespace          string
 	tagFormat               string = "json"
 	allowAllTags            bool
+	propagateToPv           bool
 
 	promActionsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "k8s_pvc_tagger_actions_total",
@@ -133,6 +134,7 @@ func main() {
 	flag.StringVar(&statusPort, "status-port", "8000", "The healthz port")
 	flag.StringVar(&metricsPort, "metrics-port", "8001", "The prometheus metrics port")
 	flag.BoolVar(&allowAllTags, "allow-all-tags", false, "Whether or not to allow any tag, even Kubernetes assigned ones, to be set")
+	flag.BoolVar(&propagateToPv, "propagate-to-pv", false, "Whether or not to propagate annotations, labels from pvc to pv and add computed tags")
 	flag.Parse()
 
 	if leaseLockName == "" {

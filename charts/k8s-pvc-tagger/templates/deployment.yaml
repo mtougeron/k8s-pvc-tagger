@@ -38,6 +38,9 @@ spec:
 {{- if .Values.watchNamespace }}
             - --watch-namespace={{ .Values.watchNamespace }}
 {{- end }}
+{{- if .Values.propagateToPV }}
+            - --propagate-to-pv={{ .Values.propagateToPV }}
+{{- end }}
           {{- range $key, $value := .Values.extraArgs }}
             {{- if $value }}
             - --{{ $key }}={{ $value }}

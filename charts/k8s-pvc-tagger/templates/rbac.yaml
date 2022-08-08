@@ -74,6 +74,9 @@ rules:
     - get
     - list
     - watch
+{{- if .Values.propagateToPV }}
+    - update
+{{- end}}
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

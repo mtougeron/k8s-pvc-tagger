@@ -675,10 +675,20 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 				Spec: pvSpec,
 			}
 			k8sClient = fake.NewSimpleClientset(pv)
-			volumeID, tags, err := processPersistentVolumeClaim(pvc)
-			if (err == nil) == tt.wantedErr {
-				t.Errorf("processPersistentVolumeClaim() err = %v, wantedErr %v", err, tt.wantedErr)
+			volumeID, tags, gotPv, err := processPersistentVolumeClaim(pvc)
+			if tt.wantedErr {
+				if err == nil {
+					t.Errorf("processPersistentVolumeClaim() err = %v, wantedErr %v", err, tt.wantedErr)
+				}
+			} else {
+				if gotPv == nil {
+					t.Error("PV must not be null")
+				}
+				if gotPv != nil && gotPv.ObjectMeta.Name != pv.ObjectMeta.Name {
+					t.Errorf("PV changed from %v to %v", pv.ObjectMeta.Name, gotPv.ObjectMeta.Name)
+				}
 			}
+
 			if volumeID != tt.wantedVolumeID {
 				t.Errorf("processPersistentVolumeClaim() volumeID = %v, want %v", volumeID, tt.wantedVolumeID)
 			}
@@ -771,10 +781,20 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 				Spec: pvSpec,
 			}
 			k8sClient = fake.NewSimpleClientset(pv)
-			volumeID, tags, err := processPersistentVolumeClaim(pvc)
-			if (err == nil) == tt.wantedErr {
-				t.Errorf("processPersistentVolumeClaim() err = %v, wantedErr %v", err, tt.wantedErr)
+			volumeID, tags, gotPv, err := processPersistentVolumeClaim(pvc)
+			if tt.wantedErr {
+				if err == nil {
+					t.Errorf("processPersistentVolumeClaim() err = %v, wantedErr %v", err, tt.wantedErr)
+				}
+			} else {
+				if gotPv == nil {
+					t.Error("PV must not be null")
+				}
+				if gotPv != nil && gotPv.ObjectMeta.Name != pv.ObjectMeta.Name {
+					t.Errorf("PV changed from %v to %v", pv.ObjectMeta.Name, gotPv.ObjectMeta.Name)
+				}
 			}
+
 			if volumeID != tt.wantedVolumeID {
 				t.Errorf("processPersistentVolumeClaim() volumeID = %v, want %v", volumeID, tt.wantedVolumeID)
 			}
@@ -783,7 +803,6 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func Test_templatedTags(t *testing.T) {
@@ -861,4 +880,109 @@ func Test_templatedTags(t *testing.T) {
 			defaultTags = map[string]string{}
 		})
 	}
+}
+
+func validateMap(t *testing.T, expected, actual map[string]string, name string) {
+	if len(expected) != len(actual) {
+		t.Errorf("PV %s size different. Expected %s / Actual %s", name, expected, actual)
+		return
+	}
+
+	var errorFound = false
+	for key, val := range expected {
+		if actual[key] != val {
+			t.Errorf("PV %s %s not correct. Expected %s / Actual %s", name, key, val, actual[key])
+			errorFound = true
+		}
+	}
+	if errorFound {
+		t.Errorf("PV %s error. Expected %s / Actual %s", name, expected, actual)
+	}
+}
+
+func Test_addPVAnnotationsLabelsAndTags(t *testing.T) {
+
+	volumeName := "pv-123456"
+
+	pvc := &corev1.PersistentVolumeClaim{}
+	pvc.SetName("my-pvc")
+	pvc.SetNamespace("my-namespace")
+	pvc.SetAnnotations(map[string]string{
+		"volume.beta.kubernetes.io/storage-provisioner": "ebs.csi.aws.com",
+		"volume.kubernetes.io/selected-node":            "ip-1-2-3-4.ec2.internal",
+		"pv.kubernetes.io/bound-by-controller":          "yes",
+		"pv.kubernetes.io/bind-completed":               "yes",
+		"k8s-pvc-tagger/tags":                           "{\"foo\": \"bar\", \"foo1\": \"{{ .Labels.TeamID }}_{{ .Labels.ProjectID }}\"}",
+		"hello":                                         "world",
+	})
+
+	pvc.SetLabels(map[string]string{
+		"TeamID":    "my-team",
+		"ProjectID": "my-project",
+		"BillingID": "123456",
+	})
+
+	tags := map[string]string{
+		"foo":  "bar",
+		"foo1": "my-team_my-project",
+	}
+
+	expectedLabels := map[string]string{
+		"TeamID":        "my-team",
+		"ProjectID":     "my-project",
+		"BillingID":     "123456",
+		"one-label-key": "one-label-value",
+		"two-label-key": "two-label-key",
+	}
+
+	expectedAnnotations := map[string]string{
+		"hello":                   "world",
+		"k8s-pvc-tagger/tag/foo":  "bar",
+		"k8s-pvc-tagger/tag/foo1": "my-team_my-project",
+		"one-annotation-key":      "one-annotation-value",
+		"two-annotation-key":      "two-annotation-key",
+	}
+
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        volumeName,
+			Labels:      map[string]string{"one-label-key": "one-label-value", "two-label-key": "two-label-key"},
+			Annotations: map[string]string{"one-annotation-key": "one-annotation-value", "two-annotation-key": "two-annotation-key"},
+		},
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					VolumeHandle: "aws://us-east-1a/vol-12345",
+				},
+			},
+		},
+	}
+
+	k8sClient = fake.NewSimpleClientset(pv)
+
+	newPv := addPVAnnotationsLabelsAndTags(pvc, pv, tags)
+
+	if newPv == nil {
+		t.Error("PV is nil")
+		return
+	}
+
+	validateMap(t, expectedAnnotations, newPv.ObjectMeta.Annotations, "annotation")
+
+	validateMap(t, expectedLabels, newPv.ObjectMeta.Labels, "labels")
+
+	expectedAnnotationsAfterDelete := map[string]string{
+		"hello":                   "world",
+		"k8s-pvc-tagger/tag/foo1": "my-team_my-project",
+		"one-annotation-key":      "one-annotation-value",
+		"two-annotation-key":      "two-annotation-key",
+	}
+
+	tagsToDelete := map[string]string{
+		"foo": "bar",
+	}
+
+	newPv = deletePVAnnotationsLabelsAndTags(pvc, pv, tagsToDelete)
+
+	validateMap(t, expectedAnnotationsAfterDelete, newPv.ObjectMeta.Annotations, "annotation")
 }

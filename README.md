@@ -18,6 +18,8 @@ The `k8s-pvc-tagger` watches for new PersistentVolumeClaims and when new AWS EBS
 
 `--allow-all-tags` - Allow all tags to be set via the PVC; even those used by the EBS/EFS controllers. Use with caution!
 
+`--propate-to-pv` - Allow to propagate labels and annotations from PVC to PV. Adding computed tags as annotation with prefix: `k8s-pvc-tagger/tags/`
+
 #### Annotations
 
 `k8s-pvc-tagger/ignore` - When this annotation is set (any value) it will ignore this PVC and not add any tags to it
@@ -91,6 +93,13 @@ helm install k8s-pvc-tagger mtougeron/k8s-pvc-tagger
 Images are available on the [GitHub Container Registry](https://github.com/users/mtougeron/packages/container/k8s-pvc-tagger/versions) and [DockerHub](https://hub.docker.com/r/mtougeron/k8s-pvc-tagger). Containers are published for `linux/amd64` & `linux/arm64`.
 
 The container images are signed with [sigstore/cosign](https://github.com/sigstore/cosign) and can be verified by running `COSIGN_EXPERIMENTAL=1 cosign verify ghcr.io/mtougeron/k8s-pvc-tagger:<tag>`
+
+
+### Considerations
+
+This operator needs to Get/List/Watch Persistent Volumes (using ClusterRole)
+
+If you want to propagate the tags from PVC to PV, you need to add `update` verb.
 
 ### Licensing
 
