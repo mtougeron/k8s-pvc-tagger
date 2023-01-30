@@ -189,7 +189,12 @@ func main() {
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/healthz", statusHandler)
-		err := http.ListenAndServe("0.0.0.0:"+statusPort, mux)
+		server := &http.Server{
+			Addr:              "0.0.0.0:" + statusPort,
+			ReadHeaderTimeout: 3 * time.Second,
+			Handler:           mux,
+		}
+		err := server.ListenAndServe()
 		if err != nil {
 			log.Errorln(err)
 		}
@@ -199,7 +204,12 @@ func main() {
 		// Handle just the /metrics endpoint on the metrics port
 		mux := http.NewServeMux()
 		mux.Handle("/metrics", promhttp.Handler())
-		err := http.ListenAndServe("0.0.0.0:"+metricsPort, mux)
+		server := &http.Server{
+			Addr:              "0.0.0.0:" + metricsPort,
+			ReadHeaderTimeout: 3 * time.Second,
+			Handler:           mux,
+		}
+		err := server.ListenAndServe()
 		if err != nil {
 			log.Errorln(err)
 		}

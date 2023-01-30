@@ -144,17 +144,32 @@ func Test_provisionedByAwsEbs(t *testing.T) {
 		want        bool
 	}{
 		{
-			name:        "valid provisioner in-tree aws-ebs",
-			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "kubernetes.io/aws-ebs"},
+			name:        "valid provisioner in-tree aws-ebs legacy annotation",
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "kubernetes.io/aws-ebs"},
 			want:        true,
 		},
 		{
 			name:        "valid provisioner ebs.csi.aws.com",
-			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "ebs.csi.aws.com"},
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "ebs.csi.aws.com"},
 			want:        true,
 		},
 		{
 			name:        "invalid provisioner",
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "something else"},
+			want:        false,
+		},
+		{
+			name:        "valid provisioner in-tree aws-ebs legacy annotation",
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "kubernetes.io/aws-ebs"},
+			want:        true,
+		},
+		{
+			name:        "valid provisioner ebs.csi.aws.com legacy annotation",
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "ebs.csi.aws.com"},
+			want:        true,
+		},
+		{
+			name:        "invalid provisioner legacy annotation",
 			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "something else"},
 			want:        false,
 		},
@@ -187,11 +202,21 @@ func Test_provisionedByAwsEfs(t *testing.T) {
 	}{
 		{
 			name:        "valid provisioner efs.csi.aws.com",
-			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "efs.csi.aws.com"},
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "efs.csi.aws.com"},
 			want:        true,
 		},
 		{
 			name:        "invalid provisioner",
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "something else"},
+			want:        false,
+		},
+		{
+			name:        "valid provisioner efs.csi.aws.com legacy annotation",
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "efs.csi.aws.com"},
+			want:        true,
+		},
+		{
+			name:        "invalid provisioner legacy annotation",
 			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "something else"},
 			want:        false,
 		},
@@ -643,8 +668,8 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pvc.SetAnnotations(map[string]string{
-				annotationPrefix + "/tags":                      tt.tagsAnnotation,
-				"volume.beta.kubernetes.io/storage-provisioner": tt.provisionedBy,
+				annotationPrefix + "/tags":                 tt.tagsAnnotation,
+				"volume.kubernetes.io/storage-provisioner": tt.provisionedBy,
 			})
 
 			var pvSpec corev1.PersistentVolumeSpec
@@ -749,8 +774,8 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pvc.SetAnnotations(map[string]string{
-				annotationPrefix + "/tags":                      tt.tagsAnnotation,
-				"volume.beta.kubernetes.io/storage-provisioner": tt.provisionedBy,
+				annotationPrefix + "/tags":                 tt.tagsAnnotation,
+				"volume.kubernetes.io/storage-provisioner": tt.provisionedBy,
 			})
 
 			var pvSpec corev1.PersistentVolumeSpec
