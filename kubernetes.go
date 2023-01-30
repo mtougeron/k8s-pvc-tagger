@@ -103,7 +103,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 	efsClient, _ := newEFSClient()
 	ec2Client, _ := newEC2Client()
 
-	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pvc := obj.(*corev1.PersistentVolumeClaim)
 			if !provisionedByAwsEfs(pvc) && !provisionedByAwsEbs(pvc) {
@@ -172,6 +172,10 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			}
 		},
 	})
+	if err != nil {
+		log.Errorln("Can't setup PVC informer! Check RBAC permissions")
+		return
+	}
 
 	informer.Run(ch)
 }
@@ -318,10 +322,17 @@ func isValidTagName(name string) bool {
 
 func provisionedByAwsEfs(pvc *corev1.PersistentVolumeClaim) bool {
 	annotations := pvc.GetAnnotations()
-	if provisionedBy, ok := annotations["volume.beta.kubernetes.io/storage-provisioner"]; !ok {
-		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("no volume.beta.kubernetes.io/storage-provisioner annotation")
+	if annotations == nil {
 		return false
-	} else if provisionedBy == "efs.csi.aws.com" {
+	}
+
+	provisionedBy, ok := getProvisionedBy(annotations)
+	if !ok {
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("no volume.kubernetes.io/storage-provisioner annotation")
+		return false
+	}
+
+	if provisionedBy == "efs.csi.aws.com" {
 		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("efs.csi.aws.com volume")
 		return true
 	}
@@ -330,10 +341,17 @@ func provisionedByAwsEfs(pvc *corev1.PersistentVolumeClaim) bool {
 
 func provisionedByAwsEbs(pvc *corev1.PersistentVolumeClaim) bool {
 	annotations := pvc.GetAnnotations()
-	if provisionedBy, ok := annotations["volume.beta.kubernetes.io/storage-provisioner"]; !ok {
-		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("no volume.beta.kubernetes.io/storage-provisioner annotation")
+	if annotations == nil {
 		return false
-	} else if provisionedBy == "kubernetes.io/aws-ebs" {
+	}
+
+	provisionedBy, ok := getProvisionedBy(annotations)
+	if !ok {
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("no volume.kubernetes.io/storage-provisioner annotation")
+		return false
+	}
+
+	if provisionedBy == "kubernetes.io/aws-ebs" {
 		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("kubernetes.io/aws-ebs volume")
 		return true
 	} else if provisionedBy == "ebs.csi.aws.com" {
@@ -360,15 +378,22 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 		log.Errorf("cannot get PVC annotations")
 		return "", nil, errors.New("cannot get PVC annotations")
 	}
-	if provisionedBy, ok := annotations["volume.beta.kubernetes.io/storage-provisioner"]; !ok {
-		log.Errorf("cannot get volume.beta.kubernetes.io/storage-provisioner annotation")
-		return "", nil, errors.New("cannot get volume.beta.kubernetes.io/storage-provisioner annotation")
-	} else if provisionedBy == "ebs.csi.aws.com" {
-		volumeID = pv.Spec.PersistentVolumeSource.CSI.VolumeHandle
+
+	provisionedBy, ok := getProvisionedBy(annotations)
+	if !ok {
+		log.Errorf("cannot get volume.kubernetes.io/storage-provisioner annotation")
+		return "", nil, errors.New("cannot get volume.kubernetes.io/storage-provisioner annotation")
+	}
+	if provisionedBy == "ebs.csi.aws.com" {
+		if pv.Spec.CSI != nil {
+			volumeID = pv.Spec.CSI.VolumeHandle
+		}
 	} else if provisionedBy == "efs.csi.aws.com" {
-		volumeID = parseAWSEFSVolumeID(pv.Spec.PersistentVolumeSource.CSI.VolumeHandle)
+		if pv.Spec.CSI != nil {
+			volumeID = parseAWSEFSVolumeID(pv.Spec.CSI.VolumeHandle)
+		}
 	} else if provisionedBy == "kubernetes.io/aws-ebs" {
-		volumeID = parseAWSEBSVolumeID(pv.Spec.PersistentVolumeSource.AWSElasticBlockStore.VolumeID)
+		volumeID = parseAWSEBSVolumeID(pv.Spec.AWSElasticBlockStore.VolumeID)
 	}
 	log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "volumeID": volumeID}).Debugln("parsed volumeID:", volumeID)
 	if len(volumeID) == 0 {
@@ -388,4 +413,14 @@ func getCurrentNamespace() string {
 	}
 
 	return ""
+}
+
+func getProvisionedBy(annotations map[string]string) (string, bool) {
+	var provisionedBy string
+	provisionedBy, ok := annotations["volume.kubernetes.io/storage-provisioner"]
+	if !ok {
+		provisionedBy, ok = annotations["volume.beta.kubernetes.io/storage-provisioner"]
+	}
+
+	return provisionedBy, ok
 }
