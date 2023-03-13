@@ -23,8 +23,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -46,11 +48,11 @@ var (
 	// DefaultKubeConfigFile local kubeconfig if not running in cluster
 	DefaultKubeConfigFile = filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	k8sClient             kubernetes.Interface
+	awsVolumeRegMatch     = regexp.MustCompile("^vol-[^/]*$")
 )
 
 const (
 	// Matching strings for volume operations.
-	regexpAWSVolumeID = `^aws:\/\/\w{2}-\w{4,9}-\d\w\/(vol-\w+)$`
 	regexpEFSVolumeID = `^fs-\w+::(fsap-\w+)$`
 )
 
@@ -180,14 +182,30 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 	informer.Run(ch)
 }
 
-func parseAWSEBSVolumeID(k8sVolumeID string) string {
-	re := regexp.MustCompile(regexpAWSVolumeID)
-	matches := re.FindSubmatch([]byte(k8sVolumeID))
-	if len(matches) <= 1 {
-		log.Errorln("Can't parse valid AWS EBS volumeID:", k8sVolumeID)
+func parseAWSEBSVolumeID(kubernetesID string) string {
+	// Pulled from https://github.com/kubernetes/csi-translation-lib/blob/release-1.26/plugins/aws_ebs.go#L244
+	if !strings.HasPrefix(kubernetesID, "aws://") {
+		// Assume a bare aws volume id (vol-1234...)
+		return kubernetesID
+	}
+	url, err := url.Parse(kubernetesID)
+	if err != nil {
+		log.Errorln(fmt.Sprintf("Invalid disk name (%s): %v", kubernetesID, err))
 		return ""
 	}
-	return string(matches[1])
+	if url.Scheme != "aws" {
+		log.Errorln(fmt.Sprintf("Invalid scheme for AWS volume (%s)", kubernetesID))
+		return ""
+	}
+	awsID := url.Path
+	awsID = strings.Trim(awsID, "/")
+
+	if !awsVolumeRegMatch.MatchString(awsID) {
+		log.Errorln(fmt.Sprintf("Invalid format for AWS volume (%s)", kubernetesID))
+		return ""
+	}
+
+	return awsID
 }
 
 func parseAWSEFSVolumeID(k8sVolumeID string) string {
