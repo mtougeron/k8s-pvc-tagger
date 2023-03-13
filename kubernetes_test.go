@@ -41,13 +41,23 @@ func Test_parseAWSEBSVolumeID(t *testing.T) {
 			want:        "vol-089747b9fac6ab469",
 		},
 		{
-			name:        "invalid AWSElasticBlockStore.VolumeID",
-			k8sVolumeID: "aws://something-else/vol-089747b9fac6ab469",
-			want:        "",
+			name:        "full AWSElasticBlockStore.VolumeID without AZ",
+			k8sVolumeID: "aws:///vol-089747b9fac6ab469",
+			want:        "vol-089747b9fac6ab469",
 		},
 		{
-			name:        "partial AWSElasticBlockStore.VolumeID",
+			name:        "invalid region but valid VolumeID",
+			k8sVolumeID: "aws://something-else/vol-089747b9fac6ab469",
+			want:        "vol-089747b9fac6ab469",
+		},
+		{
+			name:        "just the AWSElasticBlockStore.VolumeID",
 			k8sVolumeID: "vol-abc123",
+			want:        "vol-abc123",
+		},
+		{
+			name:        "invalid AWSElasticBlockStore.VolumeID",
+			k8sVolumeID: "aws://089747b9fac6ab469",
 			want:        "",
 		},
 	}
@@ -640,7 +650,7 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 			provisionedBy:  "kubernetes.io/aws-ebs",
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     volumeName,
-			volumeID:       "asdf://us-east-1a/vol-12345",
+			volumeID:       "aws://us-east-1a/abc123",
 			wantedTags:     nil,
 			wantedVolumeID: "",
 			wantedErr:      true,
