@@ -87,16 +87,12 @@ jobs:
       # repository is public to avoid leaking data. https://github.com/sigstore/cosign
       - name: Sign the published Dockerhub image
         if: ${{ github.event_name != 'pull_request' }}
-        env:
-          COSIGN_EXPERIMENTAL: "true"
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
-        run: cosign sign -a "repo=${{ github.repository }}" -r ${{ secrets.DOCKER_HUB_USERNAME }}/k8s-pvc-tagger@${{ steps.docker_build.outputs.digest }}
+        run: cosign sign --yes -a "repo=${{ github.repository }}" -r ${{ secrets.DOCKER_HUB_USERNAME }}/k8s-pvc-tagger@${{ steps.docker_build.outputs.digest }}
 
       - name: Sign the published GitHub image
         if: ${{ github.event_name != 'pull_request' }}
-        env:
-          COSIGN_EXPERIMENTAL: "true"
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
-        run: cosign sign -a "repo=${{ github.repository }}" -r ghcr.io/${{ github.repository_owner }}/k8s-pvc-tagger@${{ steps.docker_build.outputs.digest }}
+        run: cosign sign --yes -a "repo=${{ github.repository }}" -r ghcr.io/${{ github.repository_owner }}/k8s-pvc-tagger@${{ steps.docker_build.outputs.digest }}
