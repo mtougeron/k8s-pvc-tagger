@@ -88,6 +88,7 @@ spec:
             # Volume mount(s)
             {{- toYaml .Values.volumeMounts | nindent 12 }}
           {{- end }}
+      hostNetwork: {{ .Values.hostNetwork }}
       {{- if .Values.volumes }}
       volumes:
         # Extra volume(s)
