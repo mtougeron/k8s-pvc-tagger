@@ -405,7 +405,9 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 	if provisionedBy == "ebs.csi.aws.com" {
 		if pv.Spec.CSI != nil {
 			volumeID = pv.Spec.CSI.VolumeHandle
-		}
+		} else {
+                        volumeID = parseAWSEBSVolumeID(pv.Spec.AWSElasticBlockStore.VolumeID)
+                }
 	} else if provisionedBy == "efs.csi.aws.com" {
 		if pv.Spec.CSI != nil {
 			volumeID = parseAWSEFSVolumeID(pv.Spec.CSI.VolumeHandle)
