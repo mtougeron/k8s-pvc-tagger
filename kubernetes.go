@@ -107,7 +107,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			pvc := obj.(*corev1.PersistentVolumeClaim)
+			pvc := getPVC(obj)
 			if !provisionedByAwsEfs(pvc) && !provisionedByAwsEbs(pvc) {
 				return
 			}
@@ -126,8 +126,8 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 		},
 		UpdateFunc: func(old, new interface{}) {
 
-			newPVC := new.(*corev1.PersistentVolumeClaim)
-			oldPVC := old.(*corev1.PersistentVolumeClaim)
+			newPVC := getPVC(new)
+			oldPVC := getPVC(old)
 			if newPVC.ResourceVersion == oldPVC.ResourceVersion {
 				log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Debugln("ResourceVersion are the same")
 				return
@@ -443,4 +443,20 @@ func getProvisionedBy(annotations map[string]string) (string, bool) {
 	}
 
 	return provisionedBy, ok
+}
+
+func getPVC(obj interface{}) *corev1.PersistentVolumeClaim {
+	pvc := obj.(*corev1.PersistentVolumeClaim)
+
+	// https://kubernetes.io/docs/reference/labels-annotations-taints/#volume-beta-kubernetes-io-storage-class-deprecated
+	// The "volume.beta.kubernetes.io/storage-class" annotation is deprecated but can be used 
+	// to specify the name of StorageClass in PVC. When both storageClassName attribute and 
+	// volume.beta.kubernetes.io/storage-class annotation are specified, the annotation 
+	// volume.beta.kubernetes.io/storage-class takes precedence over the storageClassName attribute.
+	storageClassName, ok := pvc.GetAnnotations()["volume.beta.kubernetes.io/storage-class"]
+	if ok {
+		pvc.Spec.StorageClassName = &storageClassName
+	}
+	
+	return pvc
 }
