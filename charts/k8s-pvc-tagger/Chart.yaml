@@ -15,5 +15,5 @@ keywords:
 sources:
   - https://github.com/mtougeron/k8s-pvc-tagger
 
-version: 2.0.4
-appVersion: v1.0.5
+version: 2.0.5
+appVersion: v1.0.6
