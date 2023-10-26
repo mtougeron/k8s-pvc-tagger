@@ -211,10 +211,20 @@ func (client *FSxClient) addFSxVolumeTags(volumeID string, tags map[string]strin
 		log.WithError(err)
 		return
 	}
-	client.TagResource(&fsx.TagResourceInput{
+	_, err = client.TagResource(&fsx.TagResourceInput{
 		ResourceARN: describeVolumesOutput.Volumes[0].ResourceARN,
 		Tags:        convertTagsToFSxTags(tags),
 	})
+
+	if err != nil {
+		log.Errorln("Could not FSx create tags for volumeID:", volumeID, err)
+		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
+		promActionsLegacyTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		return
+	}
+
+	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
+	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
 }
 
 func (client *FSxClient) deleteFSxVolumeTags(volumeID string, tags []*string, storageclass string) {
@@ -226,8 +236,18 @@ func (client *FSxClient) deleteFSxVolumeTags(volumeID string, tags []*string, st
 		log.WithError(err)
 		return
 	}
-	client.UntagResource(&fsx.UntagResourceInput{
+	_, err = client.UntagResource(&fsx.UntagResourceInput{
 		ResourceARN: describeVolumesOutput.Volumes[0].ResourceARN,
 		TagKeys:     tags,
 	})
+
+	if err != nil {
+		log.Errorln("Could not FSx delete tags for volumeID:", volumeID, err)
+		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
+		promActionsLegacyTotal.With(prometheus.Labels{"status": "error"}).Inc()
+		return
+	}
+
+	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
+	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
 }
