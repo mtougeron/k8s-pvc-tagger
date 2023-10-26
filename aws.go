@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/efs"
 	"github.com/aws/aws-sdk-go/service/efs/efsiface"
+	"github.com/aws/aws-sdk-go/service/fsx"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
@@ -52,6 +53,11 @@ type EFSClient struct {
 // Client EC2 client interface
 type EBSClient struct {
 	ec2iface.EC2API
+}
+
+// FSx client
+type FSxClient struct {
+	*fsx.FSx
 }
 
 // CustomRetryer for custom retry settings
@@ -87,6 +93,12 @@ func newEFSClient() (*EFSClient, error) {
 func newEC2Client() (*EBSClient, error) {
 	svc := ec2.New(awsSession)
 	return &EBSClient{svc}, nil
+}
+
+// newFSxClient initializes an AWS client
+func newFSxClient() (*FSxClient, error) {
+	svc := fsx.New(awsSession)
+	return &FSxClient{svc}, nil
 }
 
 func getMetadataRegion() (string, error) {
@@ -188,4 +200,34 @@ func (client *EFSClient) deleteEFSVolumeTags(volumeID string, tags []string, sto
 
 	promActionsTotal.With(prometheus.Labels{"status": "success", "storageclass": storageclass}).Inc()
 	promActionsLegacyTotal.With(prometheus.Labels{"status": "success"}).Inc()
+}
+
+func (client *FSxClient) addFSxVolumeTags(volumeID string, tags map[string]string, storageclass string) {
+	volumeIDs := []*string{&volumeID}
+	describeVolumesOutput, err := client.DescribeVolumes(&fsx.DescribeVolumesInput{
+		VolumeIds: volumeIDs,
+	})
+	if err != nil {
+		log.WithError(err)
+		return
+	}
+	client.TagResource(&fsx.TagResourceInput{
+		ResourceARN: describeVolumesOutput.Volumes[0].ResourceARN,
+		Tags:        convertTagsToFSxTags(tags),
+	})
+}
+
+func (client *FSxClient) deleteFSxVolumeTags(volumeID string, tags []*string, storageclass string) {
+	volumeIDs := []*string{&volumeID}
+	describeVolumesOutput, err := client.DescribeVolumes(&fsx.DescribeVolumesInput{
+		VolumeIds: volumeIDs,
+	})
+	if err != nil {
+		log.WithError(err)
+		return
+	}
+	client.UntagResource(&fsx.UntagResourceInput{
+		ResourceARN: describeVolumesOutput.Volumes[0].ResourceARN,
+		TagKeys:     tags,
+	})
 }

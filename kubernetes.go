@@ -32,6 +32,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/fsx"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -104,11 +106,12 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 
 	efsClient, _ := newEFSClient()
 	ec2Client, _ := newEC2Client()
+	fsxClient, _ := newFSxClient()
 
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pvc := getPVC(obj)
-			if !provisionedByAwsEfs(pvc) && !provisionedByAwsEbs(pvc) {
+			if !provisionedByAwsEfs(pvc) && !provisionedByAwsEbs(pvc) && !provisionedByAwsFsx(pvc) {
 				return
 			}
 			log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Infoln("New PVC Added to Store")
@@ -123,6 +126,9 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			if provisionedByAwsEbs(pvc) {
 				ec2Client.addEBSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
 			}
+			if provisionedByAwsFsx(pvc) {
+				fsxClient.addFSxVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
+			}
 		},
 		UpdateFunc: func(old, new interface{}) {
 
@@ -132,7 +138,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Debugln("ResourceVersion are the same")
 				return
 			}
-			if !provisionedByAwsEfs(newPVC) && !provisionedByAwsEbs(newPVC) {
+			if !provisionedByAwsEfs(newPVC) && !provisionedByAwsEbs(newPVC) && !provisionedByAwsFsx(newPVC) {
 				return
 			}
 			if newPVC.Spec.VolumeName == "" {
@@ -156,12 +162,17 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				if provisionedByAwsEbs(newPVC) {
 					ec2Client.addEBSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
 				}
+				if provisionedByAwsFsx(newPVC) {
+					fsxClient.addFSxVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
+				}
 			}
 			oldTags := buildTags(oldPVC)
 			var deletedTags []string
+			var deletedTagsPtr []*string
 			for k := range oldTags {
 				if _, ok := tags[k]; !ok {
 					deletedTags = append(deletedTags, k)
+					deletedTagsPtr = append(deletedTagsPtr, &k)
 				}
 			}
 			if len(deletedTags) > 0 {
@@ -170,6 +181,9 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				}
 				if provisionedByAwsEbs(newPVC) {
 					ec2Client.deleteEBSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
+				}
+				if provisionedByAwsFsx(newPVC) {
+					fsxClient.deleteFSxVolumeTags(volumeID, deletedTagsPtr, *oldPVC.Spec.StorageClassName)
 				}
 			}
 		},
@@ -180,6 +194,17 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 	}
 
 	informer.Run(ch)
+}
+
+func convertTagsToFSxTags(tags map[string]string) []*fsx.Tag {
+	convertedTags := []*fsx.Tag{}
+	for tagKey, tagValue := range tags {
+		convertedTags = append(convertedTags, &fsx.Tag{
+			Key:   aws.String(tagKey),
+			Value: aws.String(tagValue),
+		})
+	}
+	return convertedTags
 }
 
 func parseAWSEBSVolumeID(kubernetesID string) string {
@@ -379,6 +404,25 @@ func provisionedByAwsEbs(pvc *corev1.PersistentVolumeClaim) bool {
 	return false
 }
 
+func provisionedByAwsFsx(pvc *corev1.PersistentVolumeClaim) bool {
+	annotations := pvc.GetAnnotations()
+	if annotations == nil {
+		return false
+	}
+
+	provisionedBy, ok := getProvisionedBy(annotations)
+	if !ok {
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("no volume.kubernetes.io/storage-provisioner annotation")
+		return false
+	}
+
+	if provisionedBy == "fsx.csi.aws.com" {
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("kubernetes.io/aws-ebs volume")
+		return true
+	}
+	return false
+}
+
 func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, map[string]string, error) {
 	tags := buildTags(pvc)
 
@@ -406,14 +450,16 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 		if pv.Spec.CSI != nil {
 			volumeID = pv.Spec.CSI.VolumeHandle
 		} else {
-                        volumeID = parseAWSEBSVolumeID(pv.Spec.AWSElasticBlockStore.VolumeID)
-                }
+			volumeID = parseAWSEBSVolumeID(pv.Spec.AWSElasticBlockStore.VolumeID)
+		}
 	} else if provisionedBy == "efs.csi.aws.com" {
 		if pv.Spec.CSI != nil {
 			volumeID = parseAWSEFSVolumeID(pv.Spec.CSI.VolumeHandle)
 		}
 	} else if provisionedBy == "kubernetes.io/aws-ebs" {
 		volumeID = parseAWSEBSVolumeID(pv.Spec.AWSElasticBlockStore.VolumeID)
+	} else if provisionedBy == "fsx.csi.aws.com" {
+		volumeID = pv.Spec.CSI.VolumeHandle
 	}
 	log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "volumeID": volumeID}).Debugln("parsed volumeID:", volumeID)
 	if len(volumeID) == 0 {
@@ -449,14 +495,14 @@ func getPVC(obj interface{}) *corev1.PersistentVolumeClaim {
 	pvc := obj.(*corev1.PersistentVolumeClaim)
 
 	// https://kubernetes.io/docs/reference/labels-annotations-taints/#volume-beta-kubernetes-io-storage-class-deprecated
-	// The "volume.beta.kubernetes.io/storage-class" annotation is deprecated but can be used 
-	// to specify the name of StorageClass in PVC. When both storageClassName attribute and 
-	// volume.beta.kubernetes.io/storage-class annotation are specified, the annotation 
+	// The "volume.beta.kubernetes.io/storage-class" annotation is deprecated but can be used
+	// to specify the name of StorageClass in PVC. When both storageClassName attribute and
+	// volume.beta.kubernetes.io/storage-class annotation are specified, the annotation
 	// volume.beta.kubernetes.io/storage-class takes precedence over the storageClassName attribute.
 	storageClassName, ok := pvc.GetAnnotations()["volume.beta.kubernetes.io/storage-class"]
 	if ok {
 		pvc.Spec.StorageClassName = &storageClassName
 	}
-	
+
 	return pvc
 }
