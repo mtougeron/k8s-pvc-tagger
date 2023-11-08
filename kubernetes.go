@@ -417,7 +417,7 @@ func provisionedByAwsFsx(pvc *corev1.PersistentVolumeClaim) bool {
 	}
 
 	if provisionedBy == "fsx.csi.aws.com" {
-		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("kubernetes.io/aws-ebs volume")
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("fsx.csi.aws.com volume")
 		return true
 	}
 	return false
