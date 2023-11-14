@@ -246,6 +246,53 @@ func Test_provisionedByAwsEfs(t *testing.T) {
 	}
 }
 
+func Test_provisionedByAwsFsx(t *testing.T) {
+
+	pvc := &corev1.PersistentVolumeClaim{}
+	pvc.SetName("my-pvc")
+	pvc.Spec.StorageClassName = &dummyStorageClassName
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        bool
+	}{
+		{
+			name:        "valid provisioner fsx.csi.aws.com",
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "fsx.csi.aws.com"},
+			want:        true,
+		},
+		{
+			name:        "invalid provisioner",
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "something else"},
+			want:        false,
+		},
+		{
+			name:        "valid provisioner fsx.csi.aws.com legacy annotation",
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "fsx.csi.aws.com"},
+			want:        true,
+		},
+		{
+			name:        "invalid provisioner legacy annotation",
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "something else"},
+			want:        false,
+		},
+		{
+			name:        "provisioner not set",
+			annotations: map[string]string{"some annotation": "something else"},
+			want:        false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pvc.SetAnnotations(tt.annotations)
+			if got := provisionedByAwsFsx(pvc); got != tt.want {
+				t.Errorf("provisionedByAwsEfs() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_buildTags(t *testing.T) {
 
 	pvc := &corev1.PersistentVolumeClaim{}
