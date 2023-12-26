@@ -4,7 +4,7 @@ NOTE: This project was originally named `k8s-aws-ebs-tagger` but was renamed to 
 
 A utility to tag PVC volumes based on the PVC's `k8s-pvc-tagger/tags` annotation
 
-![Go](https://github.com/mtougeron/k8s-pvc-tagger/workflows/Go/badge.svg) ![Gosec](https://github.com/mtougeron/k8s-pvc-tagger/workflows/Gosec/badge.svg) ![ContainerScan](https://github.com/mtougeron/k8s-pvc-tagger/workflows/ContainerScan/badge.svg) [![GitHub tag](https://img.shields.io/github/v/tag/mtougeron/k8s-pvc-tagger)](https://github.com/mtougeron/k8s-pvc-tagger/tags/)
+![Go](https://github.com/mtougeron/k8s-pvc-tagger/workflows/Go/badge.svg) ![Gosec](https://github.com/mtougeron/k8s-pvc-tagger/workflows/Gosec/badge.svg) [![GitHub tag](https://img.shields.io/github/v/tag/mtougeron/k8s-pvc-tagger)](https://github.com/mtougeron/k8s-pvc-tagger/tags/)
 
 The `k8s-pvc-tagger` watches for new PersistentVolumeClaims and when new AWS EBS/EFS volumes are created it adds tags based on the PVC's `k8s-pvc-tagger/tags` annotation to the created EBS/EFS volume. Other cloud provider and volume times are coming soon.
 
