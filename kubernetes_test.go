@@ -143,7 +143,6 @@ func Test_isValidTagName(t *testing.T) {
 }
 
 func Test_provisionedByAwsEbs(t *testing.T) {
-
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName("my-pvc")
 	pvc.Spec.StorageClassName = &dummyStorageClassName
@@ -155,12 +154,12 @@ func Test_provisionedByAwsEbs(t *testing.T) {
 	}{
 		{
 			name:        "valid provisioner in-tree aws-ebs legacy annotation",
-			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "kubernetes.io/aws-ebs"},
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": AWS_EBS_LEGACY},
 			want:        true,
 		},
 		{
 			name:        "valid provisioner ebs.csi.aws.com",
-			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "ebs.csi.aws.com"},
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": AWS_EBS_CSI},
 			want:        true,
 		},
 		{
@@ -170,12 +169,12 @@ func Test_provisionedByAwsEbs(t *testing.T) {
 		},
 		{
 			name:        "valid provisioner in-tree aws-ebs legacy annotation",
-			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "kubernetes.io/aws-ebs"},
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": AWS_EBS_LEGACY},
 			want:        true,
 		},
 		{
 			name:        "valid provisioner ebs.csi.aws.com legacy annotation",
-			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "ebs.csi.aws.com"},
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": AWS_EBS_CSI},
 			want:        true,
 		},
 		{
@@ -200,7 +199,6 @@ func Test_provisionedByAwsEbs(t *testing.T) {
 }
 
 func Test_provisionedByAwsEfs(t *testing.T) {
-
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName("my-pvc")
 	pvc.Spec.StorageClassName = &dummyStorageClassName
@@ -212,7 +210,7 @@ func Test_provisionedByAwsEfs(t *testing.T) {
 	}{
 		{
 			name:        "valid provisioner efs.csi.aws.com",
-			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "efs.csi.aws.com"},
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": AWS_EFS_CSI},
 			want:        true,
 		},
 		{
@@ -222,7 +220,7 @@ func Test_provisionedByAwsEfs(t *testing.T) {
 		},
 		{
 			name:        "valid provisioner efs.csi.aws.com legacy annotation",
-			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "efs.csi.aws.com"},
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": AWS_EFS_CSI},
 			want:        true,
 		},
 		{
@@ -247,7 +245,6 @@ func Test_provisionedByAwsEfs(t *testing.T) {
 }
 
 func Test_provisionedByAwsFsx(t *testing.T) {
-
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName("my-pvc")
 	pvc.Spec.StorageClassName = &dummyStorageClassName
@@ -259,7 +256,7 @@ func Test_provisionedByAwsFsx(t *testing.T) {
 	}{
 		{
 			name:        "valid provisioner fsx.csi.aws.com",
-			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "fsx.csi.aws.com"},
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": AWS_FSX_CSI},
 			want:        true,
 		},
 		{
@@ -269,7 +266,7 @@ func Test_provisionedByAwsFsx(t *testing.T) {
 		},
 		{
 			name:        "valid provisioner fsx.csi.aws.com legacy annotation",
-			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "fsx.csi.aws.com"},
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": AWS_FSX_CSI},
 			want:        true,
 		},
 		{
@@ -293,8 +290,64 @@ func Test_provisionedByAwsFsx(t *testing.T) {
 	}
 }
 
-func Test_buildTags(t *testing.T) {
+func Test_provisionedByGcpPD(t *testing.T) {
+	pvc := &corev1.PersistentVolumeClaim{}
+	pvc.SetName("my-pvc")
+	dummyStorageClassName := "dummy-storage-class"
+	pvc.Spec.StorageClassName = &dummyStorageClassName
 
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        bool
+	}{
+		{
+			name:        "valid provisioner in-tree gce-pd legacy annotation",
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": GCP_PD_LEGACY},
+			want:        true,
+		},
+		{
+			name:        "valid provisioner pd.csi.storage.gke.io",
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": GCP_PD_CSI},
+			want:        true,
+		},
+		{
+			name:        "invalid provisioner",
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "something else"},
+			want:        false,
+		},
+		{
+			name:        "valid provisioner in-tree gce-pd legacy annotation beta",
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": GCP_PD_LEGACY},
+			want:        true,
+		},
+		{
+			name:        "valid provisioner pd.csi.storage.gke.io legacy annotation",
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": GCP_PD_CSI},
+			want:        true,
+		},
+		{
+			name:        "invalid provisioner legacy annotation",
+			annotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": "something else"},
+			want:        false,
+		},
+		{
+			name:        "provisioner not set",
+			annotations: map[string]string{"some annotation": "something else"},
+			want:        false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pvc.SetAnnotations(tt.annotations)
+			if got := provisionedByGcpPD(pvc); got != tt.want {
+				t.Errorf("provisionedByGcpPD() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_buildTags(t *testing.T) {
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName("my-pvc")
 	pvc.Spec.StorageClassName = &dummyStorageClassName
@@ -303,6 +356,8 @@ func Test_buildTags(t *testing.T) {
 		name         string
 		defaultTags  map[string]string
 		allowAllTags bool
+		copyLabels   []string
+		pvcLabels    map[string]string
 		annotations  map[string]string
 		want         map[string]string
 		tagFormat    string
@@ -566,16 +621,52 @@ func Test_buildTags(t *testing.T) {
 			annotations:  map[string]string{"k8s-pvc-tagger/tags": "{\"foo\": \"selected\"}", "aws-ebs-tagger/ignore": ""},
 			want:         map[string]string{},
 		},
+		{
+			name:         "copy-labels flag is set as wildcard",
+			defaultTags:  map[string]string{},
+			allowAllTags: false,
+			copyLabels:   []string{"*"},
+			pvcLabels:    map[string]string{"foo": "bar", "dom.tld/key": "value"},
+			want:         map[string]string{"foo": "bar", "dom.tld/key": "value"},
+		},
+		{
+			name:         "copy-labels flag with one matching label",
+			defaultTags:  map[string]string{},
+			allowAllTags: false,
+			copyLabels:   []string{"foo"},
+			pvcLabels:    map[string]string{"foo": "bar", "dom.tld/key": "value"},
+			want:         map[string]string{"foo": "bar"},
+		},
+		{
+			name:         "copy-labels flag with multiple matching labels",
+			defaultTags:  map[string]string{},
+			allowAllTags: false,
+			copyLabels:   []string{"foo", "dom.tld/key"},
+			pvcLabels:    map[string]string{"foo": "bar", "dom.tld/key": "value"},
+			want:         map[string]string{"foo": "bar", "dom.tld/key": "value"},
+		},
+		{
+			name:         "copy-labels with default tags",
+			defaultTags:  map[string]string{"quux": "baz"},
+			allowAllTags: false,
+			copyLabels:   []string{"foo", "dom.tld/key"},
+			pvcLabels:    map[string]string{"foo": "bar", "dom.tld/key": "value"},
+			want:         map[string]string{"quux": "baz", "foo": "bar", "dom.tld/key": "value"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pvc.SetAnnotations(tt.annotations)
+			pvc.SetLabels(tt.pvcLabels)
 			defaultTags = tt.defaultTags
 			allowAllTags = tt.allowAllTags
 			if tt.tagFormat != "" {
 				tagFormat = tt.tagFormat
 			} else {
 				tagFormat = "json"
+			}
+			if tt.copyLabels != nil {
+				copyLabels = tt.copyLabels
 			}
 			if got := buildTags(pvc); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("buildTags() = %v, want %v", got, tt.want)
@@ -587,7 +678,6 @@ func Test_buildTags(t *testing.T) {
 }
 
 func Test_annotationPrefix(t *testing.T) {
-
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName("my-pvc")
 	defaultAnnotationPrefix := annotationPrefix
@@ -675,7 +765,7 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 	}{
 		{
 			name:           "csi with valid tags and volume id",
-			provisionedBy:  "ebs.csi.aws.com",
+			provisionedBy:  AWS_EBS_CSI,
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     volumeName,
 			wantedTags:     map[string]string{"foo": "bar"},
@@ -684,7 +774,7 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 		},
 		{
 			name:           "in-tree with valid tags and volume id",
-			provisionedBy:  "kubernetes.io/aws-ebs",
+			provisionedBy:  AWS_EBS_LEGACY,
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     volumeName,
 			volumeID:       "aws://us-east-1a/vol-12345",
@@ -694,7 +784,7 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 		},
 		{
 			name:           "in-tree with valid tags and invalid volume id",
-			provisionedBy:  "kubernetes.io/aws-ebs",
+			provisionedBy:  AWS_EBS_LEGACY,
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     volumeName,
 			volumeID:       "aws://us-east-1a/abc123",
@@ -713,7 +803,7 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 		},
 		{
 			name:           "in-tree with missing PV",
-			provisionedBy:  "kubernetes.io/aws-ebs",
+			provisionedBy:  AWS_EBS_LEGACY,
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     "asdf",
 			volumeID:       "aws://us-east-1a/vol-12345",
@@ -730,7 +820,7 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 			})
 
 			var pvSpec corev1.PersistentVolumeSpec
-			if tt.provisionedBy == "ebs.csi.aws.com" {
+			if tt.provisionedBy == AWS_EBS_CSI {
 				pvSpec = corev1.PersistentVolumeSpec{
 					StorageClassName: dummyStorageClassName,
 					PersistentVolumeSource: corev1.PersistentVolumeSource{
@@ -769,7 +859,6 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func Test_processEFSPersistentVolumeClaim(t *testing.T) {
@@ -790,7 +879,7 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 	}{
 		{
 			name:           "csi with valid tags and volume id",
-			provisionedBy:  "efs.csi.aws.com",
+			provisionedBy:  AWS_EFS_CSI,
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     volumeName,
 			volumeID:       "fs-05b82f74723423::fsap-06cc098e562d23425",
@@ -800,7 +889,7 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 		},
 		{
 			name:           "csi with valid tags and invalid volume id",
-			provisionedBy:  "efs.csi.aws.com",
+			provisionedBy:  AWS_EFS_CSI,
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     volumeName,
 			volumeID:       "asdf://us-east-1a/vol-12345",
@@ -819,7 +908,7 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 		},
 		{
 			name:           "csi with missing PV",
-			provisionedBy:  "efs.csi.aws.com",
+			provisionedBy:  AWS_EFS_CSI,
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     "asdf",
 			volumeID:       "fs-05b82f74723423::fsap-06cc098e562d23425",
@@ -836,7 +925,7 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 			})
 
 			var pvSpec corev1.PersistentVolumeSpec
-			if tt.provisionedBy == "efs.csi.aws.com" {
+			if tt.provisionedBy == AWS_EFS_CSI {
 				pvSpec = corev1.PersistentVolumeSpec{
 					PersistentVolumeSource: corev1.PersistentVolumeSource{
 						CSI: &corev1.CSIPersistentVolumeSource{
@@ -865,11 +954,124 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 			}
 		})
 	}
+}
 
+func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
+	volumeName := "pvc-1234"
+	pvc := &corev1.PersistentVolumeClaim{}
+	pvc.SetName("my-pvc")
+	pvc.Spec.VolumeName = volumeName
+
+	tests := []struct {
+		name           string
+		provisionedBy  string
+		tagsAnnotation string
+		volumeID       string
+		volumeName     string
+		wantedTags     map[string]string
+		wantedVolumeID string
+		wantedErr      bool
+	}{
+		{
+			name:           "csi with valid tags and volume id",
+			provisionedBy:  GCP_PD_CSI,
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     volumeName,
+			volumeID:       "projects/my-project/zones/us-east1-a/disks/my-disk",
+			wantedTags:     map[string]string{"foo": "bar"},
+			wantedVolumeID: "projects/my-project/zones/us-east1-a/disks/my-disk",
+			wantedErr:      false,
+		},
+		{
+			name:           "in-tree with valid tags and volume id",
+			provisionedBy:  GCP_PD_LEGACY,
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     volumeName,
+			volumeID:       "projects/my-project/zones/us-east1-a/disks/my-disk",
+			wantedTags:     map[string]string{"foo": "bar"},
+			wantedVolumeID: "projects/my-project/zones/us-east1-a/disks/my-disk",
+			wantedErr:      false,
+		},
+		{
+			name:           "in-tree with valid tags and invalid volume id",
+			provisionedBy:  GCP_PD_LEGACY,
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     volumeName,
+			volumeID:       "",
+			wantedTags:     nil,
+			wantedVolumeID: "",
+			wantedErr:      true,
+		},
+		{
+			name:           "other with valid tags and volume id",
+			provisionedBy:  "foo",
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     volumeName,
+			wantedTags:     nil,
+			wantedVolumeID: "",
+			wantedErr:      true,
+		},
+		{
+			name:           "in-tree with missing PV",
+			provisionedBy:  GCP_PD_LEGACY,
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     "asdf",
+			volumeID:       "projects/my-project/zones/us-east1-a/disks/my-disk",
+			wantedTags:     nil,
+			wantedVolumeID: "",
+			wantedErr:      true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pvc.SetAnnotations(map[string]string{
+				annotationPrefix + "/tags":                 tt.tagsAnnotation,
+				"volume.kubernetes.io/storage-provisioner": tt.provisionedBy,
+			})
+
+			var pvSpec corev1.PersistentVolumeSpec
+			if tt.provisionedBy == GCP_PD_CSI {
+				pvSpec = corev1.PersistentVolumeSpec{
+					StorageClassName: dummyStorageClassName,
+					PersistentVolumeSource: corev1.PersistentVolumeSource{
+						CSI: &corev1.CSIPersistentVolumeSource{
+							VolumeHandle: tt.wantedVolumeID,
+						},
+					},
+				}
+			} else {
+				pvSpec = corev1.PersistentVolumeSpec{
+					StorageClassName: dummyStorageClassName,
+					PersistentVolumeSource: corev1.PersistentVolumeSource{
+						GCEPersistentDisk: &corev1.GCEPersistentDiskVolumeSource{
+							PDName: tt.volumeID,
+						},
+					},
+				}
+			}
+			pv := &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        tt.volumeName,
+					Annotations: map[string]string{},
+				},
+				Spec: pvSpec,
+			}
+			k8sClient = fake.NewSimpleClientset(pv)
+			volumeID, tags, err := processPersistentVolumeClaim(pvc)
+			if (err == nil) == tt.wantedErr {
+				t.Errorf("processPersistentVolumeClaim() err = %v, wantedErr %v", err, tt.wantedErr)
+			}
+			if volumeID != tt.wantedVolumeID {
+				t.Errorf("processPersistentVolumeClaim() volumeID = %v, want %v", volumeID, tt.wantedVolumeID)
+			}
+			if !reflect.DeepEqual(tags, tt.wantedTags) {
+				t.Errorf("processPersistentVolumeClaim() tags = %v, want %v", tags, tt.wantedTags)
+			}
+		})
+	}
 }
 
 func Test_templatedTags(t *testing.T) {
-
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName("my-pvc")
 	pvc.SetNamespace("my-namespace")
