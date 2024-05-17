@@ -35,10 +35,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	// awsSession the AWS Session
-	awsSession *session.Session
-)
+// awsSession the AWS Session
+var awsSession *session.Session
 
 const (
 	// Matching strings for region
@@ -215,7 +213,6 @@ func (client *FSxClient) addFSxVolumeTags(volumeID string, tags map[string]strin
 		ResourceARN: describeFileSystemOutput.FileSystems[0].ResourceARN,
 		Tags:        convertTagsToFSxTags(tags),
 	})
-
 	if err != nil {
 		log.Errorln("Could not FSx create tags for volumeID:", volumeID, err)
 		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
@@ -240,7 +237,6 @@ func (client *FSxClient) deleteFSxVolumeTags(volumeID string, tags []*string, st
 		ResourceARN: describeVolumesOutput.Volumes[0].ResourceARN,
 		TagKeys:     tags,
 	})
-
 	if err != nil {
 		log.Errorln("Could not FSx delete tags for volumeID:", volumeID, err)
 		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()

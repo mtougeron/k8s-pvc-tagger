@@ -73,3 +73,39 @@ func Test_parseCsv(t *testing.T) {
 		})
 	}
 }
+
+func Test_parseCopyLabels(t *testing.T) {
+	tests := []struct {
+		name             string
+		copyLabelsString string
+		want             []string
+	}{
+		{
+			name:             "copy all labels",
+			copyLabelsString: "*",
+			want:             []string{"*"},
+		},
+		{
+			name:             "copy one label",
+			copyLabelsString: "foo",
+			want:             []string{"foo"},
+		},
+		{
+			name:             "copy multiple labels",
+			copyLabelsString: "foo,bar",
+			want:             []string{"foo", "bar"},
+		},
+		{
+			name:             "copy no labels",
+			copyLabelsString: "",
+			want:             []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parseCopyLabels(tt.copyLabelsString); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseCopyLabels() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
