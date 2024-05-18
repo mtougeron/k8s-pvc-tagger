@@ -96,7 +96,26 @@ You need to create an AWS IAM Role that can be used by `k8s-pvc-tagger`. For EKS
 
 #### GCP Service Account
 
-TBD/TODO: fill in details here, possibly even a custom role with minimum needed perms
+You need a GCP Service Account (GSA) that can be used by `k8s-pvc-tagger`. For GKE clusters, [Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) should be used instead of a static JSON key.
+
+It is recommended you create a custom IAM role for use by `k8s-pvc-tagger`. The permissions needed are:
+
+- compute.disks.get
+- compute.disks.list
+- compute.disks.setLabels
+
+An example terraform resources is in [examples/gcp-custom-role.tf](examples/gcp-custom-role.tf).
+
+Or, with `gcloud`:
+
+```sh
+gcloud iam roles create CustomDiskRole \
+    --project=<your-project-id> \
+    --title="k8s-pvc-tagger" \
+    --description="Custom role to manage disk permissions" \
+    --permissions="compute.disks.get,compute.disks.list,compute.disks.setLabels" \
+    --stage="GA"
+```
 
 #### Install via helm
 
