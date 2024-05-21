@@ -200,7 +200,7 @@ func main() {
 	log.WithFields(log.Fields{"tags": defaultTags}).Infoln("Default Tags")
 
 	if copyLabelsString != "" {
-		copyLabels = strings.Split(copyLabelsString, ",")
+		copyLabels = parseCopyLabels(copyLabelsString)
 		log.Infof("Copying PVC labels to tags: %v", copyLabels)
 	}
 
@@ -367,5 +367,8 @@ func parseCopyLabels(copyLabelsString string) []string {
 	if copyLabelsString == "" {
 		return []string{}
 	}
-	return strings.Split(copyLabelsString, ",")
+	// remove empty strings from final list, eg: "foo,,bar" -> ["foo" "bar"]:
+	return strings.FieldsFunc(copyLabelsString, func(c rune) bool {
+		return c == ','
+	})
 }

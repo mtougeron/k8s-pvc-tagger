@@ -96,9 +96,19 @@ func Test_parseCopyLabels(t *testing.T) {
 			want:             []string{"foo", "bar"},
 		},
 		{
+			name:             "empty values in list",
+			copyLabelsString: "foo,bar",
+			want:             []string{"foo", "bar"},
+		},
+		{
 			name:             "copy no labels",
 			copyLabelsString: "",
 			want:             []string{},
+		},
+		{
+			name:             "empty values in list",
+			copyLabelsString: "foo,,bar",
+			want:             []string{"foo", "bar"},
 		},
 	}
 	for _, tt := range tests {
