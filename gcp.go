@@ -144,7 +144,7 @@ func deletePDVolumeLabels(c GCPClient, volumeID string, keys []string, storagecl
 	waitForCompletion := func(_ context.Context) (bool, error) {
 		resp, err := c.GetGCEOp(project, location, op.Name)
 		if err != nil {
-			return false, fmt.Errorf("failed to delete labels from PD %s: %s", disk.Name, err)
+			return false, fmt.Errorf("failed retrieve status of label update operation: %s", err)
 		}
 		return resp.Status == "DONE", nil
 	}
@@ -153,6 +153,7 @@ func deletePDVolumeLabels(c GCPClient, volumeID string, keys []string, storagecl
 		time.Minute,
 		false,
 		waitForCompletion); err != nil {
+		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
 		log.Errorf("delete label operation failed: %s", err)
 		return
 	}
