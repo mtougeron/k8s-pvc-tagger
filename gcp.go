@@ -93,6 +93,7 @@ func addPDVolumeLabels(c GCPClient, volumeID string, labels map[string]string, s
 		false,
 		waitForCompletion); err != nil {
 		log.Errorf("set label operation failed: %s", err)
+		promActionsTotal.With(prometheus.Labels{"status": "error", "storageclass": storageclass}).Inc()
 		return
 	}
 

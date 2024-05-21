@@ -364,23 +364,8 @@ func parseCopyLabels(copyLabelsString string) []string {
 	if copyLabelsString == "*" {
 		return []string{"*"}
 	}
-<<<<<<< HEAD
-	if copyLabelsString == "" {
-		return []string{}
-	}
 	// remove empty strings from final list, eg: "foo,,bar" -> ["foo" "bar"]:
 	return strings.FieldsFunc(copyLabelsString, func(c rune) bool {
 		return c == ','
 	})
-||||||| parent of 36790c1 (handle empty strings in copy-labels list)
-	if copyLabelsString == "" {
-		return []string{}
-	}
-	return strings.Split(copyLabelsString, ",")
-=======
-	// remove empty strings from final list, eg: "foo,,bar" -> ["foo" "bar"]:
-	return strings.FieldsFunc(copyLabelsString, func(c rune) bool {
-		return c == ','
-	})
->>>>>>> 36790c1 (handle empty strings in copy-labels list)
 }

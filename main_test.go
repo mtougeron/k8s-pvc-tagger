@@ -105,20 +105,11 @@ func Test_parseCopyLabels(t *testing.T) {
 			copyLabelsString: "",
 			want:             []string{},
 		},
-<<<<<<< HEAD
-		{
-			name:             "empty values in list",
-			copyLabelsString: "foo,,bar",
-			want:             []string{"foo", "bar"},
-		},
-||||||| parent of 36790c1 (handle empty strings in copy-labels list)
-=======
 		{
 			name:             "empty values in list are removed",
 			copyLabelsString: "foo,,bar",
 			want:             []string{"foo", "bar"},
 		},
->>>>>>> 36790c1 (handle empty strings in copy-labels list)
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
