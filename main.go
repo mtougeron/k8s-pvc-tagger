@@ -55,6 +55,8 @@ var (
 	watchNamespace          string
 	tagFormat               string = "json"
 	allowAllTags            bool
+	cloud                   string
+	copyLabels              []string
 
 	promActionsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "k8s_pvc_tagger_actions_total",
@@ -87,6 +89,11 @@ var (
 	})
 )
 
+const (
+	AWS = "aws"
+	GCP = "gcp"
+)
+
 func init() {
 	if logFormatEnv == "" || strings.ToLower(logFormatEnv) == "json" {
 		log.SetFormatter(&log.JSONFormatter{})
@@ -110,6 +117,7 @@ func init() {
 }
 
 func main() {
+	var err error
 	var kubeconfig string
 	var kubeContext string
 	var region string
@@ -119,6 +127,7 @@ func main() {
 	var defaultTagsString string
 	var statusPort string
 	var metricsPort string
+	var copyLabelsString string
 
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "absolute path to the kubeconfig file")
 	flag.StringVar(&kubeContext, "context", "", "the context to use")
@@ -133,6 +142,8 @@ func main() {
 	flag.StringVar(&statusPort, "status-port", "8000", "The healthz port")
 	flag.StringVar(&metricsPort, "metrics-port", "8001", "The prometheus metrics port")
 	flag.BoolVar(&allowAllTags, "allow-all-tags", false, "Whether or not to allow any tag, even Kubernetes assigned ones, to be set")
+	flag.StringVar(&cloud, "cloud", AWS, "The cloud provider (aws or gcp)")
+	flag.StringVar(&copyLabelsString, "copy-labels", "", "Comma-separated list of PVC labels to copy to volumes. Use '*' to copy all labels. (default \"\")")
 	flag.Parse()
 
 	if leaseLockName == "" {
@@ -143,6 +154,35 @@ func main() {
 		if leaseLockNamespace == "" {
 			log.Fatalln("unable to get lease lock resource namespace (missing lease-lock-namespace flag).")
 		}
+	}
+
+	switch cloud {
+	case AWS:
+		log.Infoln("Running in AWS mode")
+		// Parse AWS_REGION environment variable.
+		if len(region) == 0 {
+			region, _ = getMetadataRegion()
+			log.WithFields(log.Fields{"region": region}).Debugln("ec2Metadata region")
+		}
+		ok, err := regexp.Match(regexpAWSRegion, []byte(region))
+		if err != nil {
+			log.Fatalln("Failed to parse AWS_REGION:", err.Error())
+		}
+		if !ok {
+			log.Fatalln("Given AWS_REGION does not match AWS Region format.")
+		}
+		awsSession = createAWSSession(region)
+		if awsSession == nil {
+			err = fmt.Errorf("nil AWS session: %v", awsSession)
+			if err != nil {
+				log.Println(err.Error())
+			}
+			os.Exit(1)
+		}
+	case GCP:
+		log.Infoln("Running in GCP mode")
+	default:
+		log.Fatalln("Cloud provider must be either aws or gcp")
 	}
 
 	defaultTags = make(map[string]string)
@@ -159,25 +199,9 @@ func main() {
 	}
 	log.WithFields(log.Fields{"tags": defaultTags}).Infoln("Default Tags")
 
-	// Parse AWS_REGION environment variable.
-	if len(region) == 0 {
-		region, _ = getMetadataRegion()
-		log.WithFields(log.Fields{"region": region}).Debugln("ec2Metadata region")
-	}
-	ok, err := regexp.Match(regexpAWSRegion, []byte(region))
-	if err != nil {
-		log.Fatalln("Failed to parse AWS_REGION:", err.Error())
-	}
-	if !ok {
-		log.Fatalln("Given AWS_REGION does not match AWS Region format.")
-	}
-	awsSession = createAWSSession(region)
-	if awsSession == nil {
-		err = fmt.Errorf("nil AWS session: %v", awsSession)
-		if err != nil {
-			log.Println(err.Error())
-		}
-		os.Exit(1)
+	if copyLabelsString != "" {
+		copyLabels = parseCopyLabels(copyLabelsString)
+		log.Infof("Copying PVC labels to tags: %v", copyLabels)
 	}
 
 	k8sClient, err = BuildClient(kubeconfig, kubeContext)
@@ -286,7 +310,6 @@ func main() {
 			},
 		},
 	})
-
 }
 
 func statusHandler(w http.ResponseWriter, r *http.Request) {
@@ -305,7 +328,6 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func runWatchNamespaceTask(ctx context.Context, namespace string) {
-
 	// Make the informer's channel here so we can close it when the
 	// context is Done()
 	ch := make(chan struct{})
@@ -316,7 +338,6 @@ func runWatchNamespaceTask(ctx context.Context, namespace string) {
 }
 
 func parseCsv(value string) map[string]string {
-
 	tags := make(map[string]string)
 	for _, s := range strings.Split(value, ",") {
 		if len(s) == 0 {
@@ -337,4 +358,14 @@ func parseCsv(value string) map[string]string {
 	}
 
 	return tags
+}
+
+func parseCopyLabels(copyLabelsString string) []string {
+	if copyLabelsString == "*" {
+		return []string{"*"}
+	}
+	// remove empty strings from final list, eg: "foo,,bar" -> ["foo" "bar"]:
+	return strings.FieldsFunc(copyLabelsString, func(c rune) bool {
+		return c == ','
+	})
 }

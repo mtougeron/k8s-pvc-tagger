@@ -25,11 +25,11 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -56,6 +56,16 @@ var (
 const (
 	// Matching strings for volume operations.
 	regexpEFSVolumeID = `^fs-\w+::(fsap-\w+)$`
+
+	// supported AWS storage provisioners:
+	AWS_EBS_CSI    = "ebs.csi.aws.com"
+	AWS_EBS_LEGACY = "kubernetes.io/aws-ebs"
+	AWS_EFS_CSI    = "efs.csi.aws.com"
+	AWS_FSX_CSI    = "fsx.csi.aws.com"
+
+	// supported GCP storage provisioners:
+	GCP_PD_CSI    = "pd.csi.storage.gke.io"
+	GCP_PD_LEGACY = "kubernetes.io/gce-pd"
 )
 
 type TagTemplate struct {
@@ -93,7 +103,7 @@ func buildConfigFromFlags(kubeconfig string, context string) (*rest.Config, erro
 }
 
 func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
-
+	var err error
 	var factory informers.SharedInformerFactory
 	log.WithFields(log.Fields{"namespace": watchNamespace}).Infoln("Starting informer")
 	if watchNamespace == "" {
@@ -104,41 +114,61 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 
 	informer := factory.Core().V1().PersistentVolumeClaims().Informer()
 
-	efsClient, _ := newEFSClient()
-	ec2Client, _ := newEC2Client()
-	fsxClient, _ := newFSxClient()
+	var efsClient *EFSClient
+	var ec2Client *EBSClient
+	var fsxClient *FSxClient
+	var gcpClient GCPClient
 
-	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	switch cloud {
+	case AWS:
+		efsClient, _ = newEFSClient()
+		ec2Client, _ = newEC2Client()
+		fsxClient, _ = newFSxClient()
+	case GCP:
+		gcpClient, err = newGCPClient(context.Background())
+		if err != nil {
+			log.Fatalln("failed to create GCP client", err)
+		}
+	}
+
+	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pvc := getPVC(obj)
-			if !provisionedByAwsEfs(pvc) && !provisionedByAwsEbs(pvc) && !provisionedByAwsFsx(pvc) {
-				return
-			}
 			log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Infoln("New PVC Added to Store")
 
 			volumeID, tags, err := processPersistentVolumeClaim(pvc)
 			if err != nil || len(tags) == 0 {
 				return
 			}
-			if provisionedByAwsEfs(pvc) {
-				efsClient.addEFSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
-			}
-			if provisionedByAwsEbs(pvc) {
-				ec2Client.addEBSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
-			}
-			if provisionedByAwsFsx(pvc) {
-				fsxClient.addFSxVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
+
+			switch cloud {
+			case AWS:
+				if !provisionedByAwsEfs(pvc) && !provisionedByAwsEbs(pvc) && !provisionedByAwsFsx(pvc) {
+					return
+				}
+
+				if provisionedByAwsEfs(pvc) {
+					efsClient.addEFSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
+				}
+				if provisionedByAwsEbs(pvc) {
+					ec2Client.addEBSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
+				}
+				if provisionedByAwsFsx(pvc) {
+					fsxClient.addFSxVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
+				}
+			case GCP:
+				if !provisionedByGcpPD(pvc) {
+					return
+				}
+				addPDVolumeLabels(gcpClient, volumeID, tags, *pvc.Spec.StorageClassName)
 			}
 		},
-		UpdateFunc: func(old, new interface{}) {
 
+		UpdateFunc: func(old, new interface{}) {
 			newPVC := getPVC(new)
 			oldPVC := getPVC(old)
 			if newPVC.ResourceVersion == oldPVC.ResourceVersion {
 				log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Debugln("ResourceVersion are the same")
-				return
-			}
-			if !provisionedByAwsEfs(newPVC) && !provisionedByAwsEbs(newPVC) && !provisionedByAwsFsx(newPVC) {
 				return
 			}
 			if newPVC.Spec.VolumeName == "" {
@@ -149,41 +179,67 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Debugln("PersistentVolumeClaim is being deleted")
 				return
 			}
-
 			log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Infoln("Need to reconcile tags")
+
 			volumeID, tags, err := processPersistentVolumeClaim(newPVC)
 			if err != nil {
 				return
 			}
-			if len(tags) > 0 {
-				if provisionedByAwsEfs(newPVC) {
-					efsClient.addEFSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
+
+			switch cloud {
+			case AWS:
+				if !provisionedByAwsEfs(newPVC) && !provisionedByAwsEbs(newPVC) && !provisionedByAwsFsx(newPVC) {
+					return
 				}
-				if provisionedByAwsEbs(newPVC) {
-					ec2Client.addEBSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
+
+				if len(tags) > 0 {
+					if provisionedByAwsEfs(newPVC) {
+						efsClient.addEFSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
+					}
+					if provisionedByAwsEbs(newPVC) {
+						ec2Client.addEBSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
+					}
+					if provisionedByAwsFsx(newPVC) {
+						fsxClient.addFSxVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
+					}
 				}
-				if provisionedByAwsFsx(newPVC) {
-					fsxClient.addFSxVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
+				oldTags := buildTags(oldPVC)
+				var deletedTags []string
+				var deletedTagsPtr []*string
+				for k := range oldTags {
+					if _, ok := tags[k]; !ok {
+						deletedTags = append(deletedTags, k)
+						deletedTagsPtr = append(deletedTagsPtr, &k)
+					}
 				}
-			}
-			oldTags := buildTags(oldPVC)
-			var deletedTags []string
-			var deletedTagsPtr []*string
-			for k := range oldTags {
-				if _, ok := tags[k]; !ok {
-					deletedTags = append(deletedTags, k)
-					deletedTagsPtr = append(deletedTagsPtr, &k)
+				if len(deletedTags) > 0 {
+					if provisionedByAwsEfs(newPVC) {
+						efsClient.deleteEFSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
+					}
+					if provisionedByAwsEbs(newPVC) {
+						ec2Client.deleteEBSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
+					}
+					if provisionedByAwsFsx(newPVC) {
+						fsxClient.deleteFSxVolumeTags(volumeID, deletedTagsPtr, *oldPVC.Spec.StorageClassName)
+					}
 				}
-			}
-			if len(deletedTags) > 0 {
-				if provisionedByAwsEfs(newPVC) {
-					efsClient.deleteEFSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
+			case GCP:
+				if !provisionedByGcpPD(newPVC) {
+					return
 				}
-				if provisionedByAwsEbs(newPVC) {
-					ec2Client.deleteEBSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
+
+				if len(tags) > 0 {
+					addPDVolumeLabels(gcpClient, volumeID, tags, *newPVC.Spec.StorageClassName)
 				}
-				if provisionedByAwsFsx(newPVC) {
-					fsxClient.deleteFSxVolumeTags(volumeID, deletedTagsPtr, *oldPVC.Spec.StorageClassName)
+				oldTags := buildTags(oldPVC)
+				var deletedTags []string
+				for k := range oldTags {
+					if _, ok := tags[k]; !ok {
+						deletedTags = append(deletedTags, k)
+					}
+				}
+				if len(deletedTags) > 0 {
+					deletePDVolumeLabels(gcpClient, volumeID, deletedTags, *newPVC.Spec.StorageClassName)
 				}
 			}
 		},
@@ -244,7 +300,6 @@ func parseAWSEFSVolumeID(k8sVolumeID string) string {
 }
 
 func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
-
 	tags := map[string]string{}
 	customTags := map[string]string{}
 	var tagString string
@@ -281,6 +336,24 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 			}
 		}
 		tags[k] = v
+	}
+
+	if len(copyLabels) > 0 {
+		for k, v := range pvc.GetLabels() {
+			if copyLabels[0] == "*" || slices.Contains(copyLabels, k) {
+				if !isValidTagName(k) {
+					if !allowAllTags {
+						log.Warnln(k, "is a restricted tag. Skipping...")
+						promInvalidTagsTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
+						promInvalidTagsLegacyTotal.Inc()
+						continue
+					} else {
+						log.Warnln(k, "is a restricted tag but still allowing it to be set...")
+					}
+				}
+				tags[k] = v
+			}
+		}
 	}
 
 	var legacyOk bool
@@ -327,7 +400,6 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 }
 
 func renderTagTemplates(pvc *corev1.PersistentVolumeClaim, tags map[string]string) map[string]string {
-
 	tplData := TagTemplate{
 		Name:        pvc.GetName(),
 		Namespace:   pvc.GetNamespace(),
@@ -375,8 +447,8 @@ func provisionedByAwsEfs(pvc *corev1.PersistentVolumeClaim) bool {
 		return false
 	}
 
-	if provisionedBy == "efs.csi.aws.com" {
-		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("efs.csi.aws.com volume")
+	if provisionedBy == AWS_EFS_CSI {
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(AWS_EFS_CSI + " volume")
 		return true
 	}
 	return false
@@ -394,11 +466,12 @@ func provisionedByAwsEbs(pvc *corev1.PersistentVolumeClaim) bool {
 		return false
 	}
 
-	if provisionedBy == "kubernetes.io/aws-ebs" {
-		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("kubernetes.io/aws-ebs volume")
+	switch provisionedBy {
+	case AWS_EBS_LEGACY:
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(AWS_EBS_LEGACY + " volume")
 		return true
-	} else if provisionedBy == "ebs.csi.aws.com" {
-		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("ebs.csi.aws.com volume")
+	case AWS_EBS_CSI:
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(AWS_EBS_CSI + " volume")
 		return true
 	}
 	return false
@@ -416,8 +489,31 @@ func provisionedByAwsFsx(pvc *corev1.PersistentVolumeClaim) bool {
 		return false
 	}
 
-	if provisionedBy == "fsx.csi.aws.com" {
-		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("fsx.csi.aws.com volume")
+	if provisionedBy == AWS_FSX_CSI {
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(AWS_FSX_CSI + " volume")
+		return true
+	}
+	return false
+}
+
+func provisionedByGcpPD(pvc *corev1.PersistentVolumeClaim) bool {
+	annotations := pvc.GetAnnotations()
+	if annotations == nil {
+		return false
+	}
+
+	provisionedBy, ok := getProvisionedBy(annotations)
+	if !ok {
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("no volume.kubernetes.io/storage-provisioner annotation")
+		return false
+	}
+
+	switch provisionedBy {
+	case GCP_PD_LEGACY:
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(GCP_PD_LEGACY + " volume")
+		return true
+	case GCP_PD_CSI:
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(GCP_PD_CSI + " volume")
 		return true
 	}
 	return false
@@ -446,21 +542,28 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 		log.Errorf("cannot get volume.kubernetes.io/storage-provisioner annotation")
 		return "", nil, errors.New("cannot get volume.kubernetes.io/storage-provisioner annotation")
 	}
-	if provisionedBy == "ebs.csi.aws.com" {
+
+	switch provisionedBy {
+	case AWS_EBS_CSI:
 		if pv.Spec.CSI != nil {
 			volumeID = pv.Spec.CSI.VolumeHandle
 		} else {
 			volumeID = parseAWSEBSVolumeID(pv.Spec.AWSElasticBlockStore.VolumeID)
 		}
-	} else if provisionedBy == "efs.csi.aws.com" {
+	case AWS_EFS_CSI:
 		if pv.Spec.CSI != nil {
 			volumeID = parseAWSEFSVolumeID(pv.Spec.CSI.VolumeHandle)
 		}
-	} else if provisionedBy == "kubernetes.io/aws-ebs" {
+	case AWS_EBS_LEGACY:
 		volumeID = parseAWSEBSVolumeID(pv.Spec.AWSElasticBlockStore.VolumeID)
-	} else if provisionedBy == "fsx.csi.aws.com" {
+	case AWS_FSX_CSI:
+		volumeID = pv.Spec.CSI.VolumeHandle
+	case GCP_PD_LEGACY:
+		volumeID = pv.Spec.GCEPersistentDisk.PDName
+	case GCP_PD_CSI:
 		volumeID = pv.Spec.CSI.VolumeHandle
 	}
+
 	log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "volumeID": volumeID}).Debugln("parsed volumeID:", volumeID)
 	if len(volumeID) == 0 {
 		log.Errorf("Cannot parse VolumeID")
@@ -472,7 +575,7 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 
 func getCurrentNamespace() string {
 	// Fall back to the namespace associated with the service account token, if available
-	if data, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
 		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
 			return ns
 		}

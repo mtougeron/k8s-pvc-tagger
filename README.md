@@ -18,6 +18,8 @@ The `k8s-pvc-tagger` watches for new PersistentVolumeClaims and when new AWS EBS
 
 `--allow-all-tags` - Allow all tags to be set via the PVC; even those used by the EBS/EFS controllers. Use with caution!
 
+`--copy-labels` - A csv encoded list of label keys from the PVC that will be used to set tags on Volumes. Use `*` to copy all labels from the PVC.
+
 #### Annotations
 
 `k8s-pvc-tagger/ignore` - When this annotation is set (any value) it will ignore this PVC and not add any tags to it
@@ -35,6 +37,10 @@ NOTE: Until version `v1.2.0` the legacy annotation prefix of `aws-ebs-tagger` wi
 3. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `k8s-pvc-tagger/ignore: ""` will not set any tags on the EBS/EFS Volume
 
 4. The cmdline arg `--default-tags={"me": "touge"}` and the annotation `k8s-pvc-tagger/tags: | {"cost-center": "abc", "environment": "prod"}` will create the tags `me=touge`, `cost-center=abc` and `environment=prod` on the EBS/EFS Volume
+
+5. The cmdline arg `--copy-labels '*'` will create a tag from each label on the PVC with the exception of the those used by the controllers unless `--allow-all-tags` is specified.
+
+6. The cmdline arg `--copy-labels 'cost-center,environment'` will copy the `cost-center` and `environment` labels from the PVC onto the cloud volume.
 
 #### ignored tags
 
@@ -72,11 +78,44 @@ metadata:
       {"OwnerID": "{{ .Namespace }}/{{ .Name }}"}
 ```
 
+### Multi-cloud support
+
+Currently supported clouds: AWS, GCP.
+
+Only one mode is active at a given time. Specify the cloud `k8s-pvc-tagger` is running in with the `--cloud` flag. Either `aws` or `gcp`.
+
+If not specified `--cloud aws` is the default mode.
+
+> NOTE: GCP labels have constraints that do not match the contraints allowed by Kubernetes labels. When running in GCP mode labels will be modified to fit GCP's constraints, if necessary. The main difference is `.` and `/` are not allowed, so a label such as `dom.tld/key` will be converted to `dom-tld_key`.
+
 ### Installation
 
 #### AWS IAM Role
 
 You need to create an AWS IAM Role that can be used by `k8s-pvc-tagger`. For EKS clusters, an [IAM Role for Service Accounts](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts-technical-overview.html) should be used instead of using an AWS access key/secret. For non-EKS clusters, I recommend using a tool like [kube2iam](https://github.com/jtblin/kube2iam). An example policy is in [examples/iam-role.json](examples/iam-role.json).
+
+#### GCP Service Account
+
+You need a GCP Service Account (GSA) that can be used by `k8s-pvc-tagger`. For GKE clusters, [Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) should be used instead of a static JSON key.
+
+It is recommended you create a custom IAM role for use by `k8s-pvc-tagger`. The permissions needed are:
+
+- compute.disks.get
+- compute.disks.list
+- compute.disks.setLabels
+
+An example terraform resources is in [examples/gcp-custom-role.tf](examples/gcp-custom-role.tf).
+
+Or, with `gcloud`:
+
+```sh
+gcloud iam roles create CustomDiskRole \
+    --project=<your-project-id> \
+    --title="k8s-pvc-tagger" \
+    --description="Custom role to manage disk permissions" \
+    --permissions="compute.disks.get,compute.disks.list,compute.disks.setLabels" \
+    --stage="GA"
+```
 
 #### Install via helm
 
