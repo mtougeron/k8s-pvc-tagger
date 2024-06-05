@@ -33,7 +33,7 @@ spec:
             - --annotation-prefix={{ .Values.annotationPrefix }}
 {{- end }}
 {{- if .Values.defaultTags }}
-            - --default-tags={{ .Values.defaultTags | toJson }}
+            - --default-tags={{ tpl (.Values.defaultTags) $ | toJson }}
 {{- end }}
 {{- if .Values.watchNamespace }}
             - --watch-namespace={{ .Values.watchNamespace }}
