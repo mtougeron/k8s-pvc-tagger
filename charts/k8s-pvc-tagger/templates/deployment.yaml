@@ -33,14 +33,18 @@ spec:
             - --annotation-prefix={{ .Values.annotationPrefix }}
 {{- end }}
 {{- if .Values.defaultTags }}
-            - --default-tags={{ tpl (.Values.defaultTags) $ | toJson }}
+            {{- if kindIs "string" .Values.defaultTags }}
+            - '--default-tags={{ tpl (.Values.defaultTags) $ }}'
+            {{- else }}
+            - '--default-tags={{ tpl (.Values.defaultTags | toJson) $ }}'
+            {{- end }}
 {{- end }}
 {{- if .Values.watchNamespace }}
             - --watch-namespace={{ .Values.watchNamespace }}
 {{- end }}
           {{- range $key, $value := .Values.extraArgs }}
             {{- if $value }}
-            - --{{ $key }}={{ $value }}
+            - --{{ $key }}={{ tpl $value $ }}
             {{- else }}
             - --{{ $key }}
             {{- end }}
