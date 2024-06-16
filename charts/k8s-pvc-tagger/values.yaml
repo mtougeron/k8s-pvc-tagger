@@ -84,3 +84,5 @@ debug: false
 
 extraEnvs: {}
 extraArgs: {}
+
+podLabels: {}
