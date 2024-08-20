@@ -90,8 +90,9 @@ var (
 )
 
 const (
-	AWS = "aws"
-	GCP = "gcp"
+	AWS   = "aws"
+	AZURE = "azure"
+	GCP   = "gcp"
 )
 
 func init() {
