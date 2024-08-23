@@ -143,7 +143,7 @@ func main() {
 	flag.StringVar(&statusPort, "status-port", "8000", "The healthz port")
 	flag.StringVar(&metricsPort, "metrics-port", "8001", "The prometheus metrics port")
 	flag.BoolVar(&allowAllTags, "allow-all-tags", false, "Whether or not to allow any tag, even Kubernetes assigned ones, to be set")
-	flag.StringVar(&cloud, "cloud", AWS, "The cloud provider (aws or gcp)")
+	flag.StringVar(&cloud, "cloud", AWS, "The cloud provider (aws, gcp or azure)")
 	flag.StringVar(&copyLabelsString, "copy-labels", "", "Comma-separated list of PVC labels to copy to volumes. Use '*' to copy all labels. (default \"\")")
 	flag.Parse()
 

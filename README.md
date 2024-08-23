@@ -80,7 +80,7 @@ metadata:
 
 ### Multi-cloud support
 
-Currently supported clouds: AWS, GCP.
+Currently supported clouds: AWS, GCP, Azure
 
 Only one mode is active at a given time. Specify the cloud `k8s-pvc-tagger` is running in with the `--cloud` flag. Either `aws` or `gcp`.
 
@@ -116,6 +116,9 @@ gcloud iam roles create CustomDiskRole \
     --permissions="compute.disks.get,compute.disks.list,compute.disks.setLabels" \
     --stage="GA"
 ```
+
+#### Azure rule
+The default role `Tag Contributor` can be used to configure the access rights for the pvc-tagger. 
 
 #### Install via helm
 
