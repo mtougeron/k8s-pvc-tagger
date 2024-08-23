@@ -182,6 +182,8 @@ func main() {
 		}
 	case GCP:
 		log.Infoln("Running in GCP mode")
+	case AZURE:
+		log.Infoln("Running in Azure mode")
 	default:
 		log.Fatalln("Cloud provider must be either aws or gcp")
 	}
