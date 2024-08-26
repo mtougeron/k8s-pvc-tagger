@@ -70,7 +70,7 @@ func (self azureClient) SetDiskTags(ctx context.Context, subscription AzureSubsc
 	if err != nil {
 		return fmt.Errorf("could not set the tags for: %w", err)
 	}
-	log.WithFields(log.Fields{"disk": diskName, "resource-group": resourceGroupName}).Debug("updated disk tags to tags=%v", response.Properties.Tags)
+	log.WithFields(log.Fields{"disk": diskName, "resource-group": resourceGroupName}).Debugf("updated disk tags to tags=%v", response.Properties.Tags)
 	return nil
 }
 

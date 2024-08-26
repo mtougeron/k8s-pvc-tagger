@@ -146,3 +146,31 @@ func Test_sanitizeLabelsForAzure(t *testing.T) {
 		assert.ErrorIs(t, err, ErrAzureTooManyTags)
 	})
 }
+
+func Test_diskScope(t *testing.T) {
+	type args struct {
+		subscription      string
+		resourceGroupName string
+		diskName          string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			"it should generate a valid scope for disks",
+			args{
+				subscription:      "sub",
+				resourceGroupName: "resource-name",
+				diskName:          "disk-name",
+			},
+			"subscriptions/sub/resourceGroups/resource-name/providers/Microsoft.Compute/disks/disk-name",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, diskScope(tt.args.subscription, tt.args.resourceGroupName, tt.args.diskName), "diskScope(%v, %v, %v)", tt.args.subscription, tt.args.resourceGroupName, tt.args.diskName)
+		})
+	}
+}
