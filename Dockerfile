@@ -37,7 +37,8 @@ RUN addgroup -S k8s-pvc-tagger && adduser -S k8s-pvc-tagger -G k8s-pvc-tagger
 # Build a small image
 FROM scratch
 COPY --from=builder /etc/passwd /etc/passwd
-USER k8s-pvc-tagger
+ENV APP_NAME=k8s-pvc-tagger
+
 # https://github.com/aws/aws-sdk-go/issues/2322
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /app/${APP_NAME} /

@@ -4,16 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"maps"
 	"strings"
-	"time"
 )
 
 var (
@@ -30,8 +28,7 @@ type AzureClient interface {
 }
 
 type azureClient struct {
-	credentials azcore.TokenCredential
-	clients     map[AzureSubscription]*armcompute.DisksClient
+	client *armresources.TagsClient
 }
 
 func NewAzureClient() (AzureClient, error) {
@@ -39,52 +36,41 @@ func NewAzureClient() (AzureClient, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return azureClient{creds, map[AzureSubscription]*armcompute.DisksClient{}}, err
-}
-
-func (self azureClient) getClient(subscriptionID AzureSubscription) (*armcompute.DisksClient, error) {
-	if client, ok := self.clients[subscriptionID]; ok {
-		return client, nil
-	}
-
-	client, err := armcompute.NewDisksClient(subscriptionID, self.credentials, &arm.ClientOptions{})
+	client, err := armresources.NewTagsClient("", creds, &arm.ClientOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	self.clients[subscriptionID] = client
-	return client, nil
+	return azureClient{client}, err
+}
+
+func diskScope(subscription string, resourceGroupName string, diskName string) string {
+	return fmt.Sprintf("subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/disks/%s", subscription, resourceGroupName, diskName)
 }
 
 func (self azureClient) GetDiskTags(ctx context.Context, subscription AzureSubscription, resourceGroupName string, diskName string) (DiskTags, error) {
-	client, err := self.getClient(subscription)
-	if err != nil {
-		return nil, err
-	}
 
-	disk, err := client.Get(ctx, resourceGroupName, diskName, &armcompute.DisksClientGetOptions{})
+	tags, err := self.client.GetAtScope(ctx, diskScope(subscription, resourceGroupName, diskName), &armresources.TagsClientGetAtScopeOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("could not get the tags for: %w", err)
 	}
-	return disk.Tags, nil
+
+	return tags.Properties.Tags, nil
 }
 
 func (self azureClient) SetDiskTags(ctx context.Context, subscription AzureSubscription, resourceGroupName string, diskName string, tags DiskTags) error {
-	client, err := self.getClient(subscription)
-	if err != nil {
-		return err
-	}
-
-	poller, err := client.BeginUpdate(ctx, resourceGroupName, diskName, armcompute.DiskUpdate{Tags: tags}, &armcompute.DisksClientBeginUpdateOptions{})
+	response, err := self.client.UpdateAtScope(
+		ctx,
+		diskScope(subscription, resourceGroupName, diskName),
+		armresources.TagsPatchResource{
+			to.Ptr(armresources.TagsPatchOperationReplace),
+			&armresources.Tags{Tags: tags},
+		}, &armresources.TagsClientUpdateAtScopeOptions{},
+	)
 	if err != nil {
 		return fmt.Errorf("could not set the tags for: %w", err)
 	}
-
-	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{5 * time.Second})
-	if err != nil {
-		return fmt.Errorf("could not set the tags for failed at polling: %w", err)
-	}
+	log.WithFields(log.Fields{"disk": diskName, "resource-group": resourceGroupName}).Debug("updated disk tags to tags=%v", response.Properties.Tags)
 	return nil
 }
 
@@ -142,7 +128,7 @@ func sanitizeValueForAzure(s string) (string, error) {
 	return s, nil
 }
 
-func UpdateAzurePodLabels(ctx context.Context, client AzureClient, volumeID string, tags map[string]string, removedTags []string, storageclass string) error {
+func UpdateAzureVolumeTags(ctx context.Context, client AzureClient, volumeID string, tags map[string]string, removedTags []string, storageclass string) error {
 	sanitizedLabels, err := sanitizeLabelsForAzure(tags)
 	if err != nil {
 		return err

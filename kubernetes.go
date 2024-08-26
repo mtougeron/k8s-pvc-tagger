@@ -168,9 +168,9 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				}
 			case AZURE:
 				if provisionedByAzureDisk(pvc) {
-					err = UpdateAzurePodLabels(context.Background(), azureClient, volumeID, tags, []string{}, *pvc.Spec.StorageClassName)
+					err = UpdateAzureVolumeTags(context.Background(), azureClient, volumeID, tags, []string{}, *pvc.Spec.StorageClassName)
 					if err != nil {
-						log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Error("failed to update persistent volume")
+						log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "error": err.Error()}).Error("failed to update persistent volume")
 					}
 				}
 
@@ -250,7 +250,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 							deletedTags = append(deletedTags, k)
 						}
 					}
-					err := UpdateAzurePodLabels(context.Background(), azureClient, volumeID, tags, deletedTags, *newPVC.Spec.StorageClassName)
+					err := UpdateAzureVolumeTags(context.Background(), azureClient, volumeID, tags, deletedTags, *newPVC.Spec.StorageClassName)
 					if err != nil {
 						log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Error("failed to update persistent volume")
 					}
