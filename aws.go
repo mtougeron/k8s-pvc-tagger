@@ -40,7 +40,7 @@ var awsSession *session.Session
 
 const (
 	// Matching strings for region
-	regexpAWSRegion = `^[\w]{2}[-][\w]{4,9}[-][\d]$`
+	regexpAWSRegion = `^[\w]{2}[-][\w]{4,9}[-][\d]$|^[\w]{2}[-][\w]{3}[-][\w]{4,9}[-][\d]$`
 )
 
 // Client efs interface
