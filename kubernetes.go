@@ -63,6 +63,9 @@ const (
 	AWS_EFS_CSI    = "efs.csi.aws.com"
 	AWS_FSX_CSI    = "fsx.csi.aws.com"
 
+	// supported AZURE storage provisioners:
+	AZURE_DISK_CSI = "disk.csi.azure.com"
+
 	// supported GCP storage provisioners:
 	GCP_PD_CSI    = "pd.csi.storage.gke.io"
 	GCP_PD_LEGACY = "kubernetes.io/gce-pd"
@@ -118,12 +121,19 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 	var ec2Client *EBSClient
 	var fsxClient *FSxClient
 	var gcpClient GCPClient
+	var azureClient AzureClient
 
 	switch cloud {
 	case AWS:
 		efsClient, _ = newEFSClient()
 		ec2Client, _ = newEC2Client()
 		fsxClient, _ = newFSxClient()
+	case AZURE:
+		// see how to get the credentials with a service account and the subscription
+		azureClient, err = NewAzureClient()
+		if err != nil {
+			log.Fatalln("failed to create Azure client", err)
+		}
 	case GCP:
 		gcpClient, err = newGCPClient(context.Background())
 		if err != nil {
@@ -156,6 +166,14 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 				if provisionedByAwsFsx(pvc) {
 					fsxClient.addFSxVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
 				}
+			case AZURE:
+				if provisionedByAzureDisk(pvc) {
+					err = UpdateAzureVolumeTags(context.Background(), azureClient, volumeID, tags, []string{}, *pvc.Spec.StorageClassName)
+					if err != nil {
+						log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "error": err.Error()}).Error("failed to update persistent volume")
+					}
+				}
+
 			case GCP:
 				if !provisionedByGcpPD(pvc) {
 					return
@@ -223,6 +241,21 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 						fsxClient.deleteFSxVolumeTags(volumeID, deletedTagsPtr, *oldPVC.Spec.StorageClassName)
 					}
 				}
+			case AZURE:
+				if !provisionedByAzureDisk(newPVC) {
+					var deletedTags []string
+					oldTags := buildTags(oldPVC)
+					for k := range oldTags {
+						if _, ok := tags[k]; !ok {
+							deletedTags = append(deletedTags, k)
+						}
+					}
+					err := UpdateAzureVolumeTags(context.Background(), azureClient, volumeID, tags, deletedTags, *newPVC.Spec.StorageClassName)
+					if err != nil {
+						log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Error("failed to update persistent volume")
+					}
+				}
+				return
 			case GCP:
 				if !provisionedByGcpPD(newPVC) {
 					return
@@ -250,6 +283,26 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 	}
 
 	informer.Run(ch)
+}
+
+func provisionedByAzureDisk(pvc *corev1.PersistentVolumeClaim) bool {
+	annotations := pvc.GetAnnotations()
+	if annotations == nil {
+		return false
+	}
+
+	provisionedBy, ok := getProvisionedBy(annotations)
+	if !ok {
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("no volume.kubernetes.io/storage-provisioner annotation")
+		return false
+	}
+
+	switch provisionedBy {
+	case AZURE_DISK_CSI:
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(AWS_EBS_LEGACY + " volume")
+		return true
+	}
+	return false
 }
 
 func convertTagsToFSxTags(tags map[string]string) []*fsx.Tag {
@@ -560,6 +613,8 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 		volumeID = pv.Spec.CSI.VolumeHandle
 	case GCP_PD_LEGACY:
 		volumeID = pv.Spec.GCEPersistentDisk.PDName
+	case AZURE_DISK_CSI:
+		volumeID = pv.Spec.CSI.VolumeHandle
 	case GCP_PD_CSI:
 		volumeID = pv.Spec.CSI.VolumeHandle
 	}
