@@ -3,6 +3,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: {{ include "k8s-pvc-tagger.fullname" . }}
+  namespace: {{ .Values.serviceMonitorNamespace | default .Release.Namespace }}
   labels:
     {{- include "k8s-pvc-tagger.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitorLabels }}

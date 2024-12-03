@@ -79,6 +79,7 @@ watchNamespace: ""
 
 serviceMonitor: false
 serviceMonitorLabels: {}
+serviceMonitorNamespace: ""
 
 debug: false
 
@@ -86,3 +87,10 @@ extraEnvs: {}
 extraArgs: {}
 
 podLabels: {}
+
+dnsPolicy: ""
+dnsConfig: {}
+
+topologySpreadConstraints: []
+
+priorityClassName: ""
