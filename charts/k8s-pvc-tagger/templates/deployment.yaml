@@ -5,16 +5,18 @@ metadata:
   labels:
     {{- include "k8s-pvc-tagger.labels" . | nindent 4 }}
 spec:
+  {{- if .Values.replicaCount }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "k8s-pvc-tagger.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-    {{- with .Values.podAnnotations }}
+      {{- with .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
-    {{- end }}
+      {{- end }}
       labels:
         {{- include "k8s-pvc-tagger.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
@@ -96,6 +98,13 @@ spec:
             {{- toYaml .Values.volumeMounts | nindent 12 }}
           {{- end }}
       hostNetwork: {{ .Values.hostNetwork }}
+      {{- if .Values.dnsPolicy }}
+      dnsPolicy: {{ .Values.dnsPolicy }}
+      {{- end }}
+      {{- if .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml .Values.dnsConfig | nindent 8 }}
+      {{- end }}
       {{- if .Values.volumes }}
       volumes:
         # Extra volume(s)
@@ -112,4 +121,11 @@ spec:
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
       {{- end }}

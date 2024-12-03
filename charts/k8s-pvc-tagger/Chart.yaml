@@ -9,6 +9,8 @@ maintainers:
 keywords:
   - kubernetes
   - aws
+  - eks
+  - pvc
   - gcp
   - aws-ebs
   - aws-efs
@@ -16,5 +18,5 @@ keywords:
 sources:
   - https://github.com/mtougeron/k8s-pvc-tagger
 
-version: 2.2.1
-appVersion: v1.1.0
+version: 2.2.2
+appVersion: v1.1.1
