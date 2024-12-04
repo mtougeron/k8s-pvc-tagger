@@ -78,7 +78,7 @@ func Test_sanitizeKeyForAzure(t *testing.T) {
 			args: args{
 				s: `1<>&\?%/`,
 			},
-			want: "1",
+			want: "1_______",
 		},
 	}
 	for _, tt := range tests {
@@ -109,7 +109,7 @@ func Test_sanitizeValueForAzure(t *testing.T) {
 		},
 
 		{
-			name:    "the max value lenght is 256 characters",
+			name:    "the max value length is 256 characters",
 			args:    args{strings.Repeat("1", 257)},
 			want:    "",
 			wantErr: true,
@@ -146,11 +146,11 @@ func Test_sanitizeLabelsForAzure(t *testing.T) {
 		assert.ErrorIs(t, err, ErrAzureTooManyTags)
 	})
 
-	t.Run("the sanitize lables gives an error when there a duplicated tags after sanitization", func(t *testing.T) {
+	t.Run("the sanitize labels gives an error when there a duplicated tags after sanitization", func(t *testing.T) {
 		t.Parallel()
 		tags := map[string]string{}
 		tags["Kubernetes/Cluster"] = "foo"
-		tags["KubernetesCluster"] = "bar"
+		tags["Kubernetes_Cluster"] = "bar"
 		_, err := sanitizeLabelsForAzure(tags)
 		assert.ErrorIs(t, err, ErrAzureDuplicatedTags)
 	})

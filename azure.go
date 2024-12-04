@@ -112,7 +112,7 @@ func sanitizeKeyForAzure(s string) string {
 	// remove forbidden characters
 	if strings.ContainsAny(s, `<>%&\?/`) {
 		for _, c := range `<>%&\?/` {
-			s = strings.ReplaceAll(s, string(c), "")
+			s = strings.ReplaceAll(s, string(c), "_")
 		}
 	}
 
