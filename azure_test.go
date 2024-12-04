@@ -145,6 +145,15 @@ func Test_sanitizeLabelsForAzure(t *testing.T) {
 		_, err = sanitizeLabelsForAzure(tags)
 		assert.ErrorIs(t, err, ErrAzureTooManyTags)
 	})
+
+	t.Run("the sanitize lables gives an error when there a duplicated tags after sanitization", func(t *testing.T) {
+		t.Parallel()
+		tags := map[string]string{}
+		tags["Kubernetes/Cluster"] = "foo"
+		tags["KubernetesCluster"] = "bar"
+		_, err := sanitizeLabelsForAzure(tags)
+		assert.ErrorIs(t, err, ErrAzureDuplicatedTags)
+	})
 }
 
 func Test_diskScope(t *testing.T) {

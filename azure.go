@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	ErrAzureTooManyTags error = errors.New("Only up to 50 tags can be set on an azure resource")
-	ErrAzureValueToLong error = errors.New("A value can only contain 256 characters")
+	ErrAzureTooManyTags    error = errors.New("Only up to 50 tags can be set on an azure resource")
+	ErrAzureValueToLong    error = errors.New("A value can only contain 256 characters")
+	ErrAzureDuplicatedTags error = errors.New("There are duplicated keys after sanitization")
 )
 
 type DiskTags = map[string]*string
@@ -92,13 +93,16 @@ func sanitizeLabelsForAzure(tags map[string]string) (DiskTags, error) {
 		return nil, ErrAzureTooManyTags
 	}
 	for k, v := range tags {
-		k = sanitizeKeyForAzure(k)
+		sanitizedKey := sanitizeKeyForAzure(k)
 		value, err := sanitizeValueForAzure(v)
 		if err != nil {
 			return nil, err
 		}
 
-		diskTags[k] = &value
+		if _, ok := diskTags[sanitizedKey]; ok {
+			return nil, fmt.Errorf("tag is duplicated after sanitization colliding tags key=%s sanitized-key=%s: %w", k, sanitizedKey, ErrAzureDuplicatedTags)
+		}
+		diskTags[sanitizedKey] = &value
 	}
 
 	return diskTags, nil
