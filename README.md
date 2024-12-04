@@ -118,7 +118,18 @@ gcloud iam roles create CustomDiskRole \
 ```
 
 #### Azure rule
-The default role `Tag Contributor` can be used to configure the access rights for the pvc-tagger. 
+The [default role `Tag Contributor`](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/management-and-governance#tag-contributor) can be used to configure the access rights for the pvc-tagger.
+At the moment this only supports csi-volumes are supported.
+Because the kubernetes tags are richer than what you can set in azure we sanitize the tags for you:
+
+- The invalid characters in key are removed: `<>%&\?/`
+This results in `Kubernetes/Cluster` to become `KubernetesCluster`.
+- tags longer than to 512 characters are truncated
+
+We generate an error in case there any of these limits are breached:
+- tag values are limited to 256 characters
+- the tag count is limted to 50 tags
+- when a tag after sanitization collides with another tag, `KubernetesCluster` and `Kubernetes/Cluster`
 
 #### Install via helm
 
