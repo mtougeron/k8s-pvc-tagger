@@ -299,7 +299,7 @@ func provisionedByAzureDisk(pvc *corev1.PersistentVolumeClaim) bool {
 
 	switch provisionedBy {
 	case AZURE_DISK_CSI:
-		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(AWS_EBS_LEGACY + " volume")
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(AZURE_DISK_CSI + " volume")
 		return true
 	}
 	return false
