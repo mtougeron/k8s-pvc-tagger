@@ -80,13 +80,13 @@ metadata:
 
 ### Multi-cloud support
 
-Currently supported clouds: AWS, GCP.
+Currently supported clouds: AWS, GCP, Azure
 
 Only one mode is active at a given time. Specify the cloud `k8s-pvc-tagger` is running in with the `--cloud` flag. Either `aws` or `gcp`.
 
 If not specified `--cloud aws` is the default mode.
 
-> NOTE: GCP labels have constraints that do not match the contraints allowed by Kubernetes labels. When running in GCP mode labels will be modified to fit GCP's constraints, if necessary. The main difference is `.` and `/` are not allowed, so a label such as `dom.tld/key` will be converted to `dom-tld_key`.
+> NOTE: GCP labels have constraints that do not match the constraints allowed by Kubernetes labels. When running in GCP mode labels will be modified to fit GCP's constraints, if necessary. The main difference is `.` and `/` are not allowed, so a label such as `dom.tld/key` will be converted to `dom-tld_key`.
 
 ### Installation
 
@@ -116,6 +116,20 @@ gcloud iam roles create CustomDiskRole \
     --permissions="compute.disks.get,compute.disks.list,compute.disks.setLabels" \
     --stage="GA"
 ```
+
+#### Azure rule
+The [default role `Tag Contributor`](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/management-and-governance#tag-contributor) can be used to configure the access rights for the pvc-tagger.
+At the moment this only supports csi-volumes are supported.
+Because the kubernetes tags are richer than what you can set in azure we sanitize the tags for you:
+
+- The invalid characters in key are replaced with `_`: `<>%&\?/` 
+This results in `Kubernetes/Cluster` to become `Kubernetes_Cluster`.
+- tags longer than to 512 characters are truncated
+
+We generate an error in case there any of these limits are breached:
+- tag values are limited to 256 characters
+- the tag count is limited to 50 tags
+- when a tag after sanitization collides with another tag, `Kubernetes_Cluster` and `Kubernetes/Cluster`
 
 #### Install via helm
 
