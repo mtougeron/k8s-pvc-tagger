@@ -616,7 +616,9 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 	case AZURE_DISK_CSI:
 		volumeID = pv.Spec.CSI.VolumeHandle
 	case GCP_PD_CSI:
-		volumeID = pv.Spec.CSI.VolumeHandle
+		if pv.Spec.CSI != nil {
+			volumeID = pv.Spec.CSI.VolumeHandle
+		}
 	}
 
 	log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "volumeID": volumeID}).Debugln("parsed volumeID:", volumeID)

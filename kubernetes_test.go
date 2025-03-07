@@ -968,6 +968,7 @@ func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
 		tagsAnnotation string
 		volumeID       string
 		volumeName     string
+		source         string
 		wantedTags     map[string]string
 		wantedVolumeID string
 		wantedErr      bool
@@ -978,6 +979,7 @@ func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     volumeName,
 			volumeID:       "projects/my-project/zones/us-east1-a/disks/my-disk",
+			source:         "csi",
 			wantedTags:     map[string]string{"foo": "bar"},
 			wantedVolumeID: "projects/my-project/zones/us-east1-a/disks/my-disk",
 			wantedErr:      false,
@@ -988,6 +990,7 @@ func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     volumeName,
 			volumeID:       "projects/my-project/zones/us-east1-a/disks/my-disk",
+			source:         "gce",
 			wantedTags:     map[string]string{"foo": "bar"},
 			wantedVolumeID: "projects/my-project/zones/us-east1-a/disks/my-disk",
 			wantedErr:      false,
@@ -998,6 +1001,7 @@ func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     volumeName,
 			volumeID:       "",
+			source:         "gce",
 			wantedTags:     nil,
 			wantedVolumeID: "",
 			wantedErr:      true,
@@ -1007,6 +1011,7 @@ func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
 			provisionedBy:  "foo",
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     volumeName,
+			source:         "gce",
 			wantedTags:     nil,
 			wantedVolumeID: "",
 			wantedErr:      true,
@@ -1017,6 +1022,17 @@ func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     "asdf",
 			volumeID:       "projects/my-project/zones/us-east1-a/disks/my-disk",
+			source:         "gce",
+			wantedTags:     nil,
+			wantedVolumeID: "",
+			wantedErr:      true,
+		},
+		{
+			name:           "csi and missing csi source",
+			provisionedBy:  GCP_PD_CSI,
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     volumeName,
+			source:         "",
 			wantedTags:     nil,
 			wantedVolumeID: "",
 			wantedErr:      true,
@@ -1029,26 +1045,22 @@ func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
 				"volume.kubernetes.io/storage-provisioner": tt.provisionedBy,
 			})
 
-			var pvSpec corev1.PersistentVolumeSpec
-			if tt.provisionedBy == GCP_PD_CSI {
-				pvSpec = corev1.PersistentVolumeSpec{
-					StorageClassName: dummyStorageClassName,
-					PersistentVolumeSource: corev1.PersistentVolumeSource{
-						CSI: &corev1.CSIPersistentVolumeSource{
-							VolumeHandle: tt.wantedVolumeID,
-						},
-					},
+			pvSpec := corev1.PersistentVolumeSpec{
+				StorageClassName:       dummyStorageClassName,
+				PersistentVolumeSource: corev1.PersistentVolumeSource{},
+			}
+
+			switch tt.source {
+			case "csi":
+				pvSpec.PersistentVolumeSource.CSI = &corev1.CSIPersistentVolumeSource{
+					VolumeHandle: tt.wantedVolumeID,
 				}
-			} else {
-				pvSpec = corev1.PersistentVolumeSpec{
-					StorageClassName: dummyStorageClassName,
-					PersistentVolumeSource: corev1.PersistentVolumeSource{
-						GCEPersistentDisk: &corev1.GCEPersistentDiskVolumeSource{
-							PDName: tt.volumeID,
-						},
-					},
+			case "gce":
+				pvSpec.PersistentVolumeSource.GCEPersistentDisk = &corev1.GCEPersistentDiskVolumeSource{
+					PDName: tt.volumeID,
 				}
 			}
+
 			pv := &corev1.PersistentVolume{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        tt.volumeName,
