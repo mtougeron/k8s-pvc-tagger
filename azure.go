@@ -4,16 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"maps"
-	"strings"
 	"os"
+	"strings"
 )
 
 var (
@@ -54,7 +54,6 @@ func NewAzureClient() (AzureClient, error) {
 	}
 
 	client, err := armresources.NewTagsClient(subscriptionID, creds, &arm.ClientOptions{})
-
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +66,6 @@ func diskScope(subscription string, resourceGroupName string, diskName string) s
 }
 
 func (self azureClient) GetDiskTags(ctx context.Context, subscription AzureSubscription, resourceGroupName string, diskName string) (DiskTags, error) {
-
 	tags, err := self.client.GetAtScope(ctx, diskScope(subscription, resourceGroupName, diskName), &armresources.TagsClientGetAtScopeOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("could not get the tags for: %w", err)
@@ -83,7 +81,8 @@ func (self azureClient) SetDiskTags(ctx context.Context, subscription AzureSubsc
 		armresources.TagsPatchResource{
 			to.Ptr(armresources.TagsPatchOperationReplace),
 			&armresources.Tags{Tags: tags},
-		}, &armresources.TagsClientUpdateAtScopeOptions{},
+		},
+		&armresources.TagsClientUpdateAtScopeOptions{},
 	)
 	if err != nil {
 		return fmt.Errorf("could not set the tags for: %w", err)
