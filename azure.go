@@ -57,7 +57,7 @@ func NewAzureClient() (AzureClient, error) {
 		return nil, err
 	}
 
-	return azureClient{client}, nil
+	return azureClient{client}, err
 }
 
 func diskScope(subscription string, resourceGroupName string, diskName string) string {
