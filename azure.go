@@ -33,16 +33,31 @@ type azureClient struct {
 }
 
 func NewAzureClient() (AzureClient, error) {
-	creds, err := azidentity.NewDefaultAzureCredential(nil)
+	var creds azcore.TokenCredential
+	var err error
+
+	// Try workload identity credential first
+	creds, err = azidentity.NewWorkloadIdentityCredential(nil)
 	if err != nil {
-		return nil, err
+		// Fallback to default azure credential if workload identity fails
+		creds, err = azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, err
+		}
 	}
-	client, err := armresources.NewTagsClient("", creds, &arm.ClientOptions{})
+
+	subscriptionID := os.Getenv("AZURE_SUBSCRIPTION_ID")
+	if subscriptionID == "" {
+		return nil, errors.New("environment variable AZURE_SUBSCRIPTION_ID is not set")
+	}
+
+	client, err := armresources.NewTagsClient(subscriptionID, creds, &arm.ClientOptions{})
+
 	if err != nil {
 		return nil, err
 	}
 
-	return azureClient{client}, err
+	return azureClient{client}, nil
 }
 
 func diskScope(subscription string, resourceGroupName string, diskName string) string {
