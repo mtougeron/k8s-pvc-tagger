@@ -3,8 +3,14 @@ name: Go
 on:
   push:
     branches: [ main ]
+    paths:
+      - go.*
+      - '**.go'
   pull_request:
     branches: [ main ]
+    paths:
+      - go.*
+      - '**.go'
 
 jobs:
 
