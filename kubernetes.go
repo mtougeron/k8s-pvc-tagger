@@ -409,6 +409,24 @@ func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
 		}
 	}
 
+	if len(copyAnnotations) > 0 {
+		for _, k := range copyAnnotations {
+			if v, ok := pvc.GetAnnotations()[k]; ok {
+				if !isValidTagName(k) {
+					if !allowAllTags {
+						log.Warnln(k, "is a restricted tag. Skipping...")
+						promInvalidTagsTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
+						promInvalidTagsLegacyTotal.Inc()
+						continue
+					} else {
+						log.Warnln(k, "is a restricted tag but still allowing it to be set...")
+					}
+				}
+				tags[k] = v
+			}
+		}
+	}
+
 	var legacyOk bool
 	tagString, ok := annotations[annotationPrefix+"/tags"]
 	// if the annotationPrefix has been changed, then we don't compare to the legacyAnnotationPrefix anymore

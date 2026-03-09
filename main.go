@@ -57,6 +57,7 @@ var (
 	allowAllTags            bool
 	cloud                   string
 	copyLabels              []string
+	copyAnnotations         []string
 
 	promActionsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "k8s_pvc_tagger_actions_total",
@@ -129,6 +130,7 @@ func main() {
 	var statusPort string
 	var metricsPort string
 	var copyLabelsString string
+	var copyAnnotationsString string
 
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "absolute path to the kubeconfig file")
 	flag.StringVar(&kubeContext, "context", "", "the context to use")
@@ -145,6 +147,7 @@ func main() {
 	flag.BoolVar(&allowAllTags, "allow-all-tags", false, "Whether or not to allow any tag, even Kubernetes assigned ones, to be set")
 	flag.StringVar(&cloud, "cloud", AWS, "The cloud provider (aws, gcp or azure)")
 	flag.StringVar(&copyLabelsString, "copy-labels", "", "Comma-separated list of PVC labels to copy to volumes. Use '*' to copy all labels. (default \"\")")
+	flag.StringVar(&copyAnnotationsString, "copy-annotations", "", "Comma-separated list of PVC annotations to copy to volumes. (default \"\")")
 	flag.Parse()
 
 	if leaseLockName == "" {
@@ -205,6 +208,11 @@ func main() {
 	if copyLabelsString != "" {
 		copyLabels = parseCopyLabels(copyLabelsString)
 		log.Infof("Copying PVC labels to tags: %v", copyLabels)
+	}
+
+	if copyAnnotationsString != "" {
+		copyAnnotations = parseCopyAnnotations(copyAnnotationsString)
+		log.Infof("Copying PVC annotations to tags: %v", copyAnnotations)
 	}
 
 	k8sClient, err = BuildClient(kubeconfig, kubeContext)
@@ -369,6 +377,13 @@ func parseCopyLabels(copyLabelsString string) []string {
 	}
 	// remove empty strings from final list, eg: "foo,,bar" -> ["foo" "bar"]:
 	return strings.FieldsFunc(copyLabelsString, func(c rune) bool {
+		return c == ','
+	})
+}
+
+func parseCopyAnnotations(copyAnnotationsString string) []string {
+	// No wildcard support for --copy-annotations
+	return strings.FieldsFunc(copyAnnotationsString, func(c rune) bool {
 		return c == ','
 	})
 }

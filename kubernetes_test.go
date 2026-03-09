@@ -353,14 +353,15 @@ func Test_buildTags(t *testing.T) {
 	pvc.Spec.StorageClassName = &dummyStorageClassName
 
 	tests := []struct {
-		name         string
-		defaultTags  map[string]string
-		allowAllTags bool
-		copyLabels   []string
-		pvcLabels    map[string]string
-		annotations  map[string]string
-		want         map[string]string
-		tagFormat    string
+		name            string
+		defaultTags     map[string]string
+		allowAllTags    bool
+		copyLabels      []string
+		copyAnnotations []string
+		pvcLabels       map[string]string
+		annotations     map[string]string
+		want            map[string]string
+		tagFormat       string
 	}{
 		{
 			name:         "ignore annotation set legacy",
@@ -653,6 +654,30 @@ func Test_buildTags(t *testing.T) {
 			pvcLabels:    map[string]string{"foo": "bar", "dom.tld/key": "value"},
 			want:         map[string]string{"quux": "baz", "foo": "bar", "dom.tld/key": "value"},
 		},
+		{
+			name:            "copy-annotations flag with one matching annotation",
+			defaultTags:     map[string]string{},
+			allowAllTags:    false,
+			copyAnnotations: []string{"foo"},
+			annotations:     map[string]string{"foo": "bar", "dom.tld/key": "value"},
+			want:            map[string]string{"foo": "bar"},
+		},
+		{
+			name:            "copy-annotations flag with multiple matching annotations",
+			defaultTags:     map[string]string{},
+			allowAllTags:    false,
+			copyAnnotations: []string{"foo", "dom.tld/key"},
+			annotations:     map[string]string{"foo": "bar", "dom.tld/key": "value"},
+			want:            map[string]string{"foo": "bar", "dom.tld/key": "value"},
+		},
+		{
+			name:            "copy-annotations with default tags",
+			defaultTags:     map[string]string{"quux": "baz"},
+			allowAllTags:    false,
+			copyAnnotations: []string{"foo", "dom.tld/key"},
+			annotations:     map[string]string{"foo": "bar", "dom.tld/key": "value"},
+			want:            map[string]string{"quux": "baz", "foo": "bar", "dom.tld/key": "value"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -667,6 +692,9 @@ func Test_buildTags(t *testing.T) {
 			}
 			if tt.copyLabels != nil {
 				copyLabels = tt.copyLabels
+			}
+			if tt.copyAnnotations != nil {
+				copyAnnotations = tt.copyAnnotations
 			}
 			if got := buildTags(pvc); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("buildTags() = %v, want %v", got, tt.want)

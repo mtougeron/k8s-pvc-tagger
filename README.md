@@ -20,6 +20,8 @@ The `k8s-pvc-tagger` watches for new PersistentVolumeClaims and when new AWS EBS
 
 `--copy-labels` - A csv encoded list of label keys from the PVC that will be used to set tags on Volumes. Use `*` to copy all labels from the PVC.
 
+`--copy-annotations` - A csv encoded list of annotation keys from the PVC that will be used to set tags on Volumes. NOTE: The wildcard `*` is NOT supported by this flag.
+
 #### Annotations
 
 `k8s-pvc-tagger/ignore` - When this annotation is set (any value) it will ignore this PVC and not add any tags to it
@@ -41,6 +43,8 @@ NOTE: Until version `v1.2.0` the legacy annotation prefix of `aws-ebs-tagger` wi
 5. The cmdline arg `--copy-labels '*'` will create a tag from each label on the PVC with the exception of the those used by the controllers unless `--allow-all-tags` is specified.
 
 6. The cmdline arg `--copy-labels 'cost-center,environment'` will copy the `cost-center` and `environment` labels from the PVC onto the cloud volume.
+
+7. The cmdline arg `--copy-annotations 'cost-center,environment'` will copy the `cost-center` and `environment` annotations from the PVC onto the cloud volume.
 
 #### ignored tags
 
