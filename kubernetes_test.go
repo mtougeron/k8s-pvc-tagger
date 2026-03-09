@@ -985,107 +985,155 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 }
 
 func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
-	volumeName := "pvc-1234"
-	pvc := &corev1.PersistentVolumeClaim{}
-	pvc.SetName("my-pvc")
-	pvc.Spec.VolumeName = volumeName
+	const volumeName = "pvc-1234"
 
 	tests := []struct {
 		name           string
-		provisionedBy  string
-		tagsAnnotation string
-		volumeID       string
-		volumeName     string
-		wantedTags     map[string]string
+		pvcAnnotations map[string]string
+		pvSource       corev1.PersistentVolumeSource
+		pvName         string
 		wantedVolumeID string
+		wantedTags     map[string]string
 		wantedErr      bool
 	}{
 		{
-			name:           "csi with valid tags and volume id",
-			provisionedBy:  GCP_PD_CSI,
-			tagsAnnotation: "{\"foo\": \"bar\"}",
-			volumeName:     volumeName,
-			volumeID:       "projects/my-project/zones/us-east1-a/disks/my-disk",
-			wantedTags:     map[string]string{"foo": "bar"},
+			name: "csi provisioner with csi volume source",
+			pvcAnnotations: map[string]string{
+				annotationPrefix + "/tags":                 "{\"foo\": \"bar\"}",
+				"volume.kubernetes.io/storage-provisioner": GCP_PD_CSI,
+			},
+			pvSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					VolumeHandle: "projects/my-project/zones/us-east1-a/disks/my-disk",
+				},
+			},
+			pvName:         volumeName,
 			wantedVolumeID: "projects/my-project/zones/us-east1-a/disks/my-disk",
-			wantedErr:      false,
-		},
-		{
-			name:           "in-tree with valid tags and volume id",
-			provisionedBy:  GCP_PD_LEGACY,
-			tagsAnnotation: "{\"foo\": \"bar\"}",
-			volumeName:     volumeName,
-			volumeID:       "projects/my-project/zones/us-east1-a/disks/my-disk",
 			wantedTags:     map[string]string{"foo": "bar"},
-			wantedVolumeID: "projects/my-project/zones/us-east1-a/disks/my-disk",
-			wantedErr:      false,
 		},
 		{
-			name:           "in-tree with valid tags and invalid volume id",
-			provisionedBy:  GCP_PD_LEGACY,
-			tagsAnnotation: "{\"foo\": \"bar\"}",
-			volumeName:     volumeName,
-			volumeID:       "",
-			wantedTags:     nil,
+			name: "legacy in-tree provisioner with legacy in-tree volume source",
+			pvcAnnotations: map[string]string{
+				annotationPrefix + "/tags":                 "{\"foo\": \"bar\"}",
+				"volume.kubernetes.io/storage-provisioner": GCP_PD_LEGACY,
+			},
+			pvSource: corev1.PersistentVolumeSource{
+				GCEPersistentDisk: &corev1.GCEPersistentDiskVolumeSource{
+					PDName: "my-disk",
+				},
+			},
+			pvName:         volumeName,
+			wantedVolumeID: "my-disk",
+			wantedTags:     map[string]string{"foo": "bar"},
+		},
+		{
+			name: "legacy in-tree provisioner with empty PD name",
+			pvcAnnotations: map[string]string{
+				annotationPrefix + "/tags":                 "{\"foo\": \"bar\"}",
+				"volume.kubernetes.io/storage-provisioner": GCP_PD_LEGACY,
+			},
+			pvSource: corev1.PersistentVolumeSource{
+				GCEPersistentDisk: &corev1.GCEPersistentDiskVolumeSource{
+					PDName: "",
+				},
+			},
+			pvName:         volumeName,
 			wantedVolumeID: "",
+			wantedTags:     nil,
 			wantedErr:      true,
 		},
 		{
-			name:           "other with valid tags and volume id",
-			provisionedBy:  "foo",
-			tagsAnnotation: "{\"foo\": \"bar\"}",
-			volumeName:     volumeName,
-			wantedTags:     nil,
+			name: "unknown provisioner",
+			pvcAnnotations: map[string]string{
+				annotationPrefix + "/tags":                 "{\"foo\": \"bar\"}",
+				"volume.kubernetes.io/storage-provisioner": "foo",
+			},
+			pvSource:       corev1.PersistentVolumeSource{},
+			pvName:         volumeName,
 			wantedVolumeID: "",
+			wantedTags:     nil,
 			wantedErr:      true,
 		},
 		{
-			name:           "in-tree with missing PV",
-			provisionedBy:  GCP_PD_LEGACY,
-			tagsAnnotation: "{\"foo\": \"bar\"}",
-			volumeName:     "asdf",
-			volumeID:       "projects/my-project/zones/us-east1-a/disks/my-disk",
-			wantedTags:     nil,
+			name: "Missing PV",
+			pvcAnnotations: map[string]string{
+				annotationPrefix + "/tags":                 "{\"foo\": \"bar\"}",
+				"volume.kubernetes.io/storage-provisioner": GCP_PD_LEGACY,
+			},
+			pvSource: corev1.PersistentVolumeSource{
+				GCEPersistentDisk: &corev1.GCEPersistentDiskVolumeSource{
+					PDName: "my-disk",
+				},
+			},
+			pvName:         "different-pv-name", // Different from PVC's VolumeName
 			wantedVolumeID: "",
+			wantedTags:     nil,
 			wantedErr:      true,
+		},
+		{
+			// This test case represents the case of a PV that was migrated from the
+			// legacy in-tree PD provisioner to the CSI provisioner.
+			// PVC is annotated with CSI provisioner, but the PV has GCE PD source
+			name: "CSI provisioner but legacy in-tree PD volume source (migration case)",
+			pvcAnnotations: map[string]string{
+				annotationPrefix + "/tags":                 "{\"foo\": \"bar\"}",
+				"volume.kubernetes.io/storage-provisioner": GCP_PD_CSI,
+			},
+			pvSource: corev1.PersistentVolumeSource{
+				GCEPersistentDisk: &corev1.GCEPersistentDiskVolumeSource{
+					PDName: "my-migrated-disk",
+				},
+			},
+			pvName:         volumeName,
+			wantedVolumeID: "my-migrated-disk",
+			wantedTags:     map[string]string{"foo": "bar"},
+		},
+		{
+			// another migration scenario: PVC has legacy annotation but PV is CSI
+			// This case is unlikely and perhaps impossible, but we cover it just in case.
+			name: "Legacy in-tree provisioner but CSI volume source (migration case)",
+			pvcAnnotations: map[string]string{
+				annotationPrefix + "/tags":                 "{\"foo\": \"bar\"}",
+				"volume.kubernetes.io/storage-provisioner": GCP_PD_LEGACY,
+			},
+			pvSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					VolumeHandle: "projects/my-project/zones/us-east1-a/disks/my-migrated-disk",
+				},
+			},
+			pvName:         volumeName,
+			wantedVolumeID: "projects/my-project/zones/us-east1-a/disks/my-migrated-disk",
+			wantedTags:     map[string]string{"foo": "bar"},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pvc.SetAnnotations(map[string]string{
-				annotationPrefix + "/tags":                 tt.tagsAnnotation,
-				"volume.kubernetes.io/storage-provisioner": tt.provisionedBy,
-			})
-
-			var pvSpec corev1.PersistentVolumeSpec
-			if tt.provisionedBy == GCP_PD_CSI {
-				pvSpec = corev1.PersistentVolumeSpec{
-					StorageClassName: dummyStorageClassName,
-					PersistentVolumeSource: corev1.PersistentVolumeSource{
-						CSI: &corev1.CSIPersistentVolumeSource{
-							VolumeHandle: tt.wantedVolumeID,
-						},
-					},
-				}
-			} else {
-				pvSpec = corev1.PersistentVolumeSpec{
-					StorageClassName: dummyStorageClassName,
-					PersistentVolumeSource: corev1.PersistentVolumeSource{
-						GCEPersistentDisk: &corev1.GCEPersistentDiskVolumeSource{
-							PDName: tt.volumeID,
-						},
-					},
-				}
+			// setup PVC
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "my-pvc",
+					Annotations: tt.pvcAnnotations,
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					VolumeName: volumeName,
+				},
 			}
+
+			// setup PV
 			pv := &corev1.PersistentVolume{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        tt.volumeName,
-					Annotations: map[string]string{},
+					Name: tt.pvName,
 				},
-				Spec: pvSpec,
+				Spec: corev1.PersistentVolumeSpec{
+					StorageClassName:       dummyStorageClassName,
+					PersistentVolumeSource: tt.pvSource,
+				},
 			}
+
 			k8sClient = fake.NewSimpleClientset(pv)
 			volumeID, tags, err := processPersistentVolumeClaim(pvc)
+
 			if (err == nil) == tt.wantedErr {
 				t.Errorf("processPersistentVolumeClaim() err = %v, wantedErr %v", err, tt.wantedErr)
 			}

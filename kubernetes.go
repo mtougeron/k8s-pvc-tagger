@@ -590,7 +590,39 @@ func provisionedByGcpPD(pvc *corev1.PersistentVolumeClaim) bool {
 	return false
 }
 
+func shouldIgnore(pvc *corev1.PersistentVolumeClaim) bool {
+	annotations := pvc.GetAnnotations()
+	if annotations == nil {
+		return false
+	}
+
+	// Check if the annotation says to ignore this PVC
+	if _, ok := annotations[annotationPrefix+"/ignore"]; ok {
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(annotationPrefix + "/ignore annotation is set")
+		promIgnoredTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
+		promIgnoredLegacyTotal.Inc()
+		return true
+	}
+
+	// if the annotationPrefix has been changed, then we don't compare to the legacyAnnotationPrefix anymore
+	if annotationPrefix == defaultAnnotationPrefix {
+		if _, ok := annotations[legacyAnnotationPrefix+"/ignore"]; ok {
+			log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(legacyAnnotationPrefix + "/ignore annotation is set")
+			promIgnoredTotal.With(prometheus.Labels{"storageclass": *pvc.Spec.StorageClassName}).Inc()
+			promIgnoredLegacyTotal.Inc()
+			return true
+		}
+	}
+
+	return false
+}
+
 func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, map[string]string, error) {
+	// Check for ignore annotation early and stop processing if found
+	if shouldIgnore(pvc) {
+		return "", nil, nil
+	}
+
 	tags := buildTags(pvc)
 
 	log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "tags": tags}).Debugln("PVC Tags")
@@ -629,12 +661,10 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 		volumeID = parseAWSEBSVolumeID(pv.Spec.AWSElasticBlockStore.VolumeID)
 	case AWS_FSX_CSI:
 		volumeID = pv.Spec.CSI.VolumeHandle
-	case GCP_PD_LEGACY:
-		volumeID = pv.Spec.GCEPersistentDisk.PDName
 	case AZURE_DISK_CSI:
 		volumeID = pv.Spec.CSI.VolumeHandle
-	case GCP_PD_CSI:
-		volumeID = pv.Spec.CSI.VolumeHandle
+	case GCP_PD_LEGACY, GCP_PD_CSI:
+		volumeID = getGCPVolumeID(pv)
 	}
 
 	log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "volumeID": volumeID}).Debugln("parsed volumeID:", volumeID)
@@ -681,4 +711,25 @@ func getPVC(obj interface{}) *corev1.PersistentVolumeClaim {
 	}
 
 	return pvc
+}
+
+// getGCPVolumeID extracts the GCP volume ID from a PersistentVolume.
+// For GCP volumes, this will either be in CSI format or GCEPersistentDisk format.
+func getGCPVolumeID(pv *corev1.PersistentVolume) string {
+	if pv == nil {
+		return ""
+	}
+
+	// In the Kubernetes API, PersistentVolumeSource is designed so that
+	// exactly one of its fields is non-nil to indicate the volume type.
+
+	if pv.Spec.CSI != nil {
+		return pv.Spec.CSI.VolumeHandle
+	}
+
+	if pv.Spec.GCEPersistentDisk != nil {
+		return pv.Spec.GCEPersistentDisk.PDName
+	}
+
+	return ""
 }
