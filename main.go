@@ -342,7 +342,7 @@ func runWatchNamespaceTask(ctx context.Context, namespace string) {
 	// Make the informer's channel here so we can close it when the
 	// context is Done()
 	ch := make(chan struct{})
-	go watchForPersistentVolumeClaims(ch, namespace)
+	go watchForPersistentVolumeClaims(ctx, ch, namespace)
 
 	<-ctx.Done()
 	close(ch)

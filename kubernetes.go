@@ -105,7 +105,7 @@ func buildConfigFromFlags(kubeconfig string, context string) (*rest.Config, erro
 		}).ClientConfig()
 }
 
-func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
+func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watchNamespace string) {
 	var err error
 	var factory informers.SharedInformerFactory
 	log.WithFields(log.Fields{"namespace": watchNamespace}).Infoln("Starting informer")
@@ -135,7 +135,7 @@ func watchForPersistentVolumeClaims(ch chan struct{}, watchNamespace string) {
 			log.Fatalln("failed to create Azure client", err)
 		}
 	case GCP:
-		gcpClient, err = newGCPClient(context.Background())
+		gcpClient, err = newGCPClient(ctx)
 		if err != nil {
 			log.Fatalln("failed to create GCP client", err)
 		}
