@@ -37,6 +37,9 @@ securityContext: {}
   #   drop:
   #   - ALL
   # readOnlyRootFilesystem: true
+  # seccompProfile:
+  #   type: RuntimeDefault
+  # allowPrivilegeEscalation: false
   # runAsNonRoot: true
   # runAsUser: 1000
 
@@ -85,6 +88,20 @@ debug: false
 
 extraEnvs: {}
 extraArgs: {}
+
+extraObjects: []
+#  - apiVersion: cilium.io/v2
+#    kind: CiliumNetworkPolicy
+#    metadata:
+#      name: k8s-pvc-tagger
+#      namespace: k8s-pvc-tagger
+#    spec:
+#      endpointSelector:
+#        matchLabels:
+#          io.cilium.k8s.policy.serviceaccount: k8s-pvc-tagger
+#      egress:
+#        - toEntities:
+#            - kube-apiserver
 
 podLabels: {}
 
