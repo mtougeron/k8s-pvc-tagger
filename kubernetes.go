@@ -243,19 +243,19 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 				}
 			case AZURE:
 				if !provisionedByAzureDisk(newPVC) {
-					var deletedTags []string
-					oldTags := buildTags(oldPVC)
-					for k := range oldTags {
-						if _, ok := tags[k]; !ok {
-							deletedTags = append(deletedTags, k)
-						}
-					}
-					err := UpdateAzureVolumeTags(context.Background(), azureClient, volumeID, tags, deletedTags, *newPVC.Spec.StorageClassName)
-					if err != nil {
-						log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Error("failed to update persistent volume")
+					return
+				}
+				var deletedTags []string
+				oldTags := buildTags(oldPVC)
+				for k := range oldTags {
+					if _, ok := tags[k]; !ok {
+						deletedTags = append(deletedTags, k)
 					}
 				}
-				return
+				err := UpdateAzureVolumeTags(context.Background(), azureClient, volumeID, tags, deletedTags, *newPVC.Spec.StorageClassName)
+				if err != nil {
+					log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Error("failed to update persistent volume")
+				}
 			case GCP:
 				if !provisionedByGcpPD(newPVC) {
 					return
