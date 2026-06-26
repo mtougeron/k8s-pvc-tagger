@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -146,28 +147,23 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 			pvc := getPVC(obj)
 			log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Infoln("New PVC Added to Store")
 
-			volumeID, tags, err := processPersistentVolumeClaim(pvc)
+			volumeID, tags, provisionedBy, err := processPersistentVolumeClaim(pvc)
 			if err != nil || len(tags) == 0 {
 				return
 			}
 
 			switch cloud {
 			case AWS:
-				if !provisionedByAwsEfs(pvc) && !provisionedByAwsEbs(pvc) && !provisionedByAwsFsx(pvc) {
-					return
-				}
-
-				if provisionedByAwsEfs(pvc) {
+				switch provisionedBy {
+				case AWS_EFS_CSI:
 					efsClient.addEFSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
-				}
-				if provisionedByAwsEbs(pvc) {
+				case AWS_EBS_CSI, AWS_EBS_LEGACY:
 					ec2Client.addEBSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
-				}
-				if provisionedByAwsFsx(pvc) {
+				case AWS_FSX_CSI:
 					fsxClient.addFSxVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
 				}
 			case AZURE:
-				if provisionedByAzureDisk(pvc) {
+				if provisionedBy == AZURE_DISK_CSI {
 					err = UpdateAzureVolumeTags(context.Background(), azureClient, volumeID, tags, []string{}, *pvc.Spec.StorageClassName)
 					if err != nil {
 						log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "error": err.Error()}).Error("failed to update persistent volume")
@@ -175,7 +171,7 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 				}
 
 			case GCP:
-				if !provisionedByGcpPD(pvc) {
+				if provisionedBy != GCP_PD_CSI && provisionedBy != GCP_PD_LEGACY {
 					return
 				}
 				addPDVolumeLabels(gcpClient, volumeID, tags, *pvc.Spec.StorageClassName)
@@ -197,31 +193,35 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 				log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Debugln("PersistentVolumeClaim is being deleted")
 				return
 			}
+
+			oldTags := buildTags(oldPVC)
+			newTags := buildTags(newPVC)
+			if reflect.DeepEqual(oldTags, newTags) {
+				return
+			}
 			log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Infoln("Need to reconcile tags")
 
-			volumeID, tags, err := processPersistentVolumeClaim(newPVC)
+			volumeID, tags, provisionedBy, err := processPersistentVolumeClaim(newPVC)
 			if err != nil {
 				return
 			}
 
 			switch cloud {
 			case AWS:
-				if !provisionedByAwsEfs(newPVC) && !provisionedByAwsEbs(newPVC) && !provisionedByAwsFsx(newPVC) {
+				if provisionedBy != AWS_EFS_CSI && provisionedBy != AWS_EBS_CSI && provisionedBy != AWS_EBS_LEGACY && provisionedBy != AWS_FSX_CSI {
 					return
 				}
 
 				if len(tags) > 0 {
-					if provisionedByAwsEfs(newPVC) {
+					switch provisionedBy {
+					case AWS_EFS_CSI:
 						efsClient.addEFSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
-					}
-					if provisionedByAwsEbs(newPVC) {
+					case AWS_EBS_CSI, AWS_EBS_LEGACY:
 						ec2Client.addEBSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
-					}
-					if provisionedByAwsFsx(newPVC) {
+					case AWS_FSX_CSI:
 						fsxClient.addFSxVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
 					}
 				}
-				oldTags := buildTags(oldPVC)
 				var deletedTags []string
 				var deletedTagsPtr []*string
 				for k := range oldTags {
@@ -231,22 +231,20 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 					}
 				}
 				if len(deletedTags) > 0 {
-					if provisionedByAwsEfs(newPVC) {
+					switch provisionedBy {
+					case AWS_EFS_CSI:
 						efsClient.deleteEFSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
-					}
-					if provisionedByAwsEbs(newPVC) {
+					case AWS_EBS_CSI, AWS_EBS_LEGACY:
 						ec2Client.deleteEBSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
-					}
-					if provisionedByAwsFsx(newPVC) {
+					case AWS_FSX_CSI:
 						fsxClient.deleteFSxVolumeTags(volumeID, deletedTagsPtr, *oldPVC.Spec.StorageClassName)
 					}
 				}
 			case AZURE:
-				if !provisionedByAzureDisk(newPVC) {
+				if provisionedBy != AZURE_DISK_CSI {
 					return
 				}
 				var deletedTags []string
-				oldTags := buildTags(oldPVC)
 				for k := range oldTags {
 					if _, ok := tags[k]; !ok {
 						deletedTags = append(deletedTags, k)
@@ -257,14 +255,13 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 					log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Error("failed to update persistent volume")
 				}
 			case GCP:
-				if !provisionedByGcpPD(newPVC) {
+				if provisionedBy != GCP_PD_CSI && provisionedBy != GCP_PD_LEGACY {
 					return
 				}
 
 				if len(tags) > 0 {
 					addPDVolumeLabels(gcpClient, volumeID, tags, *newPVC.Spec.StorageClassName)
 				}
-				oldTags := buildTags(oldPVC)
 				var deletedTags []string
 				for k := range oldTags {
 					if _, ok := tags[k]; !ok {
@@ -617,10 +614,10 @@ func shouldIgnore(pvc *corev1.PersistentVolumeClaim) bool {
 	return false
 }
 
-func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, map[string]string, error) {
+func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, map[string]string, string, error) {
 	// Check for ignore annotation early and stop processing if found
 	if shouldIgnore(pvc) {
-		return "", nil, nil
+		return "", nil, "", nil
 	}
 
 	tags := buildTags(pvc)
@@ -630,20 +627,15 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 	pv, err := k8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvc.Spec.VolumeName, metav1.GetOptions{})
 	if err != nil {
 		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Errorln("Get PV from kubernetes cluster error:", err)
-		return "", nil, err
+		return "", nil, "", err
 	}
 
 	var volumeID string
 	annotations := pvc.GetAnnotations()
-	if annotations == nil {
-		log.Errorf("cannot get PVC annotations")
-		return "", nil, errors.New("cannot get PVC annotations")
-	}
-
-	provisionedBy, ok := getProvisionedBy(annotations)
+	provisionedBy, ok := getProvisionedByFromPVCAndPV(annotations, pv.GetAnnotations())
 	if !ok {
-		log.Errorf("cannot get volume.kubernetes.io/storage-provisioner annotation")
-		return "", nil, errors.New("cannot get volume.kubernetes.io/storage-provisioner annotation")
+		log.Errorf("cannot get provisioner annotation; checked keys: volume.kubernetes.io/storage-provisioner, volume.beta.kubernetes.io/storage-provisioner, pv.kubernetes.io/provisioned-by")
+		return "", nil, "", errors.New("cannot get provisioner annotation; checked keys: volume.kubernetes.io/storage-provisioner, volume.beta.kubernetes.io/storage-provisioner, pv.kubernetes.io/provisioned-by")
 	}
 
 	switch provisionedBy {
@@ -670,10 +662,10 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 	log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName(), "volumeID": volumeID}).Debugln("parsed volumeID:", volumeID)
 	if len(volumeID) == 0 {
 		log.Errorf("Cannot parse VolumeID")
-		return "", nil, errors.New("cannot parse VolumeID")
+		return "", nil, "", errors.New("cannot parse VolumeID")
 	}
 
-	return volumeID, tags, nil
+	return volumeID, tags, provisionedBy, nil
 }
 
 func getCurrentNamespace() string {
@@ -692,6 +684,19 @@ func getProvisionedBy(annotations map[string]string) (string, bool) {
 	provisionedBy, ok := annotations["volume.kubernetes.io/storage-provisioner"]
 	if !ok {
 		provisionedBy, ok = annotations["volume.beta.kubernetes.io/storage-provisioner"]
+	}
+
+	return provisionedBy, ok
+}
+
+func getProvisionedByFromPVCAndPV(pvcAnnotations map[string]string, pvAnnotations map[string]string) (string, bool) {
+	provisionedBy, ok := getProvisionedBy(pvcAnnotations)
+	if ok {
+		return provisionedBy, true
+	}
+
+	if pvAnnotations != nil {
+		provisionedBy, ok = pvAnnotations["pv.kubernetes.io/provisioned-by"]
 	}
 
 	return provisionedBy, ok
