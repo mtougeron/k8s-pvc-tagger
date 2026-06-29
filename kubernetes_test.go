@@ -163,6 +163,11 @@ func Test_provisionedByAwsEbs(t *testing.T) {
 			want:        true,
 		},
 		{
+			name:        "valid provisioner ebs.csi.eks.amazonaws.com",
+			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": AWS_EBS_CSI_AUTO},
+			want:        true,
+		},
+		{
 			name:        "invalid provisioner",
 			annotations: map[string]string{"volume.kubernetes.io/storage-provisioner": "something else"},
 			want:        false,
@@ -801,6 +806,15 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 			wantedErr:      false,
 		},
 		{
+			name:           "csi auto mode with valid tags and volume id",
+			provisionedBy:  AWS_EBS_CSI_AUTO,
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     volumeName,
+			wantedTags:     map[string]string{"foo": "bar"},
+			wantedVolumeID: "vol-12345",
+			wantedErr:      false,
+		},
+		{
 			name:           "in-tree with valid tags and volume id",
 			provisionedBy:  AWS_EBS_LEGACY,
 			tagsAnnotation: "{\"foo\": \"bar\"}",
@@ -848,7 +862,7 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 			})
 
 			var pvSpec corev1.PersistentVolumeSpec
-			if tt.provisionedBy == AWS_EBS_CSI {
+			if tt.provisionedBy == AWS_EBS_CSI || tt.provisionedBy == AWS_EBS_CSI_AUTO {
 				pvSpec = corev1.PersistentVolumeSpec{
 					StorageClassName: dummyStorageClassName,
 					PersistentVolumeSource: corev1.PersistentVolumeSource{

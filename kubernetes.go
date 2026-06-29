@@ -545,6 +545,9 @@ func provisionedByAwsEbs(pvc *corev1.PersistentVolumeClaim) bool {
 	case AWS_EBS_CSI:
 		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(AWS_EBS_CSI + " volume")
 		return true
+	case AWS_EBS_CSI_AUTO:
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(AWS_EBS_CSI_AUTO + " volume")
+		return true
 	}
 	return false
 }
