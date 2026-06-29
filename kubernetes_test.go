@@ -876,8 +876,8 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 			wantedTags:     map[string]string{"foo": "bar"},
 			wantedVolumeID: "vol-12345",
 			wantedErr:      false,
-    },
-    {
+		},
+		{
 			name:                "csi with provisioner on PV only",
 			provisionedBy:       AWS_EBS_CSI,
 			tagsAnnotation:      "{\"foo\": \"bar\"}",

@@ -158,7 +158,7 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 				switch provisionedBy {
 				case AWS_EFS_CSI:
 					efsClient.addEFSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
-				case AWS_EBS_CSI, AWS_EBS_LEGACY:
+				case AWS_EBS_CSI, AWS_EBS_LEGACY, AWS_EBS_CSI_AUTO:
 					ec2Client.addEBSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
 				case AWS_FSX_CSI:
 					fsxClient.addFSxVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
@@ -209,7 +209,7 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 
 			switch cloud {
 			case AWS:
-				if provisionedBy != AWS_EFS_CSI && provisionedBy != AWS_EBS_CSI && provisionedBy != AWS_EBS_LEGACY && provisionedBy != AWS_FSX_CSI {
+				if provisionedBy != AWS_EFS_CSI && provisionedBy != AWS_EBS_CSI && provisionedBy != AWS_EBS_LEGACY && provisionedBy != AWS_FSX_CSI && provisionedBy != AWS_EBS_CSI_AUTO {
 					return
 				}
 
@@ -217,7 +217,7 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 					switch provisionedBy {
 					case AWS_EFS_CSI:
 						efsClient.addEFSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
-					case AWS_EBS_CSI, AWS_EBS_LEGACY:
+					case AWS_EBS_CSI, AWS_EBS_LEGACY, AWS_EBS_CSI_AUTO:
 						ec2Client.addEBSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
 					case AWS_FSX_CSI:
 						fsxClient.addFSxVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
@@ -235,7 +235,7 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 					switch provisionedBy {
 					case AWS_EFS_CSI:
 						efsClient.deleteEFSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
-					case AWS_EBS_CSI, AWS_EBS_LEGACY:
+					case AWS_EBS_CSI, AWS_EBS_LEGACY, AWS_EBS_CSI_AUTO:
 						ec2Client.deleteEBSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
 					case AWS_FSX_CSI:
 						fsxClient.deleteFSxVolumeTags(volumeID, deletedTagsPtr, *oldPVC.Spec.StorageClassName)
