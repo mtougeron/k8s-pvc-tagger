@@ -58,10 +58,11 @@ const (
 	regexpEFSVolumeID = `^fs-\w+::(fsap-\w+)$`
 
 	// supported AWS storage provisioners:
-	AWS_EBS_CSI    = "ebs.csi.aws.com"
-	AWS_EBS_LEGACY = "kubernetes.io/aws-ebs"
-	AWS_EFS_CSI    = "efs.csi.aws.com"
-	AWS_FSX_CSI    = "fsx.csi.aws.com"
+	AWS_EBS_CSI_AUTO = "ebs.csi.eks.amazonaws.com"
+	AWS_EBS_CSI      = "ebs.csi.aws.com"
+	AWS_EBS_LEGACY   = "kubernetes.io/aws-ebs"
+	AWS_EFS_CSI      = "efs.csi.aws.com"
+	AWS_FSX_CSI      = "fsx.csi.aws.com"
 
 	// supported AZURE storage provisioners:
 	AZURE_DISK_CSI = "disk.csi.azure.com"
@@ -647,7 +648,7 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 	}
 
 	switch provisionedBy {
-	case AWS_EBS_CSI:
+	case AWS_EBS_CSI, AWS_EBS_CSI_AUTO:
 		if pv.Spec.CSI != nil {
 			volumeID = pv.Spec.CSI.VolumeHandle
 		} else {
