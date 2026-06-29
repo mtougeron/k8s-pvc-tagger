@@ -10,15 +10,18 @@ keywords:
   - kubernetes
   - aws
   - eks
+  - eks-auto
   - pvc
   - gcp
   - azure
   - aks
   - aws-ebs
+  - aws-ebs-eks
+  - aws-ebs-auto
   - aws-efs
   - persistent-volumes
 sources:
   - https://github.com/mtougeron/k8s-pvc-tagger
 
-version: 2.3.4
-appVersion: v1.2.6
+version: 2.4.0
+appVersion: v1.3.0
