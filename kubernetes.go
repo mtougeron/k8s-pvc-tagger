@@ -59,10 +59,11 @@ const (
 	regexpEFSVolumeID = `^fs-\w+::(fsap-\w+)$`
 
 	// supported AWS storage provisioners:
-	AWS_EBS_CSI    = "ebs.csi.aws.com"
-	AWS_EBS_LEGACY = "kubernetes.io/aws-ebs"
-	AWS_EFS_CSI    = "efs.csi.aws.com"
-	AWS_FSX_CSI    = "fsx.csi.aws.com"
+	AWS_EBS_CSI_AUTO = "ebs.csi.eks.amazonaws.com"
+	AWS_EBS_CSI      = "ebs.csi.aws.com"
+	AWS_EBS_LEGACY   = "kubernetes.io/aws-ebs"
+	AWS_EFS_CSI      = "efs.csi.aws.com"
+	AWS_FSX_CSI      = "fsx.csi.aws.com"
 
 	// supported AZURE storage provisioners:
 	AZURE_DISK_CSI = "disk.csi.azure.com"
@@ -157,7 +158,7 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 				switch provisionedBy {
 				case AWS_EFS_CSI:
 					efsClient.addEFSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
-				case AWS_EBS_CSI, AWS_EBS_LEGACY:
+				case AWS_EBS_CSI, AWS_EBS_LEGACY, AWS_EBS_CSI_AUTO:
 					ec2Client.addEBSVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
 				case AWS_FSX_CSI:
 					fsxClient.addFSxVolumeTags(volumeID, tags, *pvc.Spec.StorageClassName)
@@ -208,7 +209,7 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 
 			switch cloud {
 			case AWS:
-				if provisionedBy != AWS_EFS_CSI && provisionedBy != AWS_EBS_CSI && provisionedBy != AWS_EBS_LEGACY && provisionedBy != AWS_FSX_CSI {
+				if provisionedBy != AWS_EFS_CSI && provisionedBy != AWS_EBS_CSI && provisionedBy != AWS_EBS_LEGACY && provisionedBy != AWS_FSX_CSI && provisionedBy != AWS_EBS_CSI_AUTO {
 					return
 				}
 
@@ -216,7 +217,7 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 					switch provisionedBy {
 					case AWS_EFS_CSI:
 						efsClient.addEFSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
-					case AWS_EBS_CSI, AWS_EBS_LEGACY:
+					case AWS_EBS_CSI, AWS_EBS_LEGACY, AWS_EBS_CSI_AUTO:
 						ec2Client.addEBSVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
 					case AWS_FSX_CSI:
 						fsxClient.addFSxVolumeTags(volumeID, tags, *newPVC.Spec.StorageClassName)
@@ -234,7 +235,7 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 					switch provisionedBy {
 					case AWS_EFS_CSI:
 						efsClient.deleteEFSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
-					case AWS_EBS_CSI, AWS_EBS_LEGACY:
+					case AWS_EBS_CSI, AWS_EBS_LEGACY, AWS_EBS_CSI_AUTO:
 						ec2Client.deleteEBSVolumeTags(volumeID, deletedTags, *oldPVC.Spec.StorageClassName)
 					case AWS_FSX_CSI:
 						fsxClient.deleteFSxVolumeTags(volumeID, deletedTagsPtr, *oldPVC.Spec.StorageClassName)
@@ -541,6 +542,9 @@ func provisionedByAwsEbs(pvc *corev1.PersistentVolumeClaim) bool {
 	case AWS_EBS_CSI:
 		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(AWS_EBS_CSI + " volume")
 		return true
+	case AWS_EBS_CSI_AUTO:
+		log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln(AWS_EBS_CSI_AUTO + " volume")
+		return true
 	}
 	return false
 }
@@ -639,7 +643,7 @@ func processPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) (string, ma
 	}
 
 	switch provisionedBy {
-	case AWS_EBS_CSI:
+	case AWS_EBS_CSI, AWS_EBS_CSI_AUTO:
 		if pv.Spec.CSI != nil {
 			volumeID = pv.Spec.CSI.VolumeHandle
 		} else {
