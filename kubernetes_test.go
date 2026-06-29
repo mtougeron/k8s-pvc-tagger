@@ -775,6 +775,68 @@ func Test_annotationPrefix(t *testing.T) {
 	}
 }
 
+func Test_getProvisionedByFromPVCAndPV(t *testing.T) {
+	tests := []struct {
+		name           string
+		pvcAnnotations map[string]string
+		pvAnnotations  map[string]string
+		want           string
+		wantOK         bool
+	}{
+		{
+			name:           "PVC volume.kubernetes.io/storage-provisioner",
+			pvcAnnotations: map[string]string{"volume.kubernetes.io/storage-provisioner": AWS_EBS_CSI},
+			want:           AWS_EBS_CSI,
+			wantOK:         true,
+		},
+		{
+			name:           "PVC volume.beta.kubernetes.io/storage-provisioner",
+			pvcAnnotations: map[string]string{"volume.beta.kubernetes.io/storage-provisioner": AWS_EBS_CSI},
+			want:           AWS_EBS_CSI,
+			wantOK:         true,
+		},
+		{
+			name:           "PV fallback when PVC has no provisioner",
+			pvcAnnotations: map[string]string{},
+			pvAnnotations:  map[string]string{"pv.kubernetes.io/provisioned-by": AWS_EBS_CSI},
+			want:           AWS_EBS_CSI,
+			wantOK:         true,
+		},
+		{
+			name:           "PVC takes precedence over PV",
+			pvcAnnotations: map[string]string{"volume.kubernetes.io/storage-provisioner": AWS_EBS_CSI},
+			pvAnnotations:  map[string]string{"pv.kubernetes.io/provisioned-by": AWS_EFS_CSI},
+			want:           AWS_EBS_CSI,
+			wantOK:         true,
+		},
+		{
+			name:           "no provisioner on PVC or PV",
+			pvcAnnotations: map[string]string{},
+			pvAnnotations:  map[string]string{},
+			want:           "",
+			wantOK:         false,
+		},
+		{
+			name:           "nil PV annotations",
+			pvcAnnotations: map[string]string{},
+			pvAnnotations:  nil,
+			want:           "",
+			wantOK:         false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := getProvisionedByFromPVCAndPV(tt.pvcAnnotations, tt.pvAnnotations)
+			if ok != tt.wantOK {
+				t.Errorf("getProvisionedByFromPVCAndPV() ok = %v, want %v", ok, tt.wantOK)
+			}
+			if got != tt.want {
+				t.Errorf("getProvisionedByFromPVCAndPV() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 	volumeName := "pvc-1234"
 	pvc := &corev1.PersistentVolumeClaim{}
@@ -782,14 +844,15 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 	pvc.Spec.VolumeName = volumeName
 
 	tests := []struct {
-		name           string
-		provisionedBy  string
-		tagsAnnotation string
-		volumeID       string
-		volumeName     string
-		wantedTags     map[string]string
-		wantedVolumeID string
-		wantedErr      bool
+		name                string
+		provisionedBy       string
+		tagsAnnotation      string
+		volumeID            string
+		volumeName          string
+		provisionerOnPVOnly bool
+		wantedTags          map[string]string
+		wantedVolumeID      string
+		wantedErr           bool
 	}{
 		{
 			name:           "csi with valid tags and volume id",
@@ -799,6 +862,16 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 			wantedTags:     map[string]string{"foo": "bar"},
 			wantedVolumeID: "vol-12345",
 			wantedErr:      false,
+		},
+		{
+			name:                "csi with provisioner on PV only",
+			provisionedBy:       AWS_EBS_CSI,
+			tagsAnnotation:      "{\"foo\": \"bar\"}",
+			volumeName:          volumeName,
+			provisionerOnPVOnly: true,
+			wantedTags:          map[string]string{"foo": "bar"},
+			wantedVolumeID:      "vol-12345",
+			wantedErr:           false,
 		},
 		{
 			name:           "in-tree with valid tags and volume id",
@@ -842,10 +915,13 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pvc.SetAnnotations(map[string]string{
-				annotationPrefix + "/tags":                 tt.tagsAnnotation,
-				"volume.kubernetes.io/storage-provisioner": tt.provisionedBy,
-			})
+			pvcAnnotations := map[string]string{
+				annotationPrefix + "/tags": tt.tagsAnnotation,
+			}
+			if !tt.provisionerOnPVOnly {
+				pvcAnnotations["volume.kubernetes.io/storage-provisioner"] = tt.provisionedBy
+			}
+			pvc.SetAnnotations(pvcAnnotations)
 
 			var pvSpec corev1.PersistentVolumeSpec
 			if tt.provisionedBy == AWS_EBS_CSI {
@@ -867,15 +943,19 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 					},
 				}
 			}
+			pvAnnotations := map[string]string{}
+			if tt.provisionerOnPVOnly {
+				pvAnnotations["pv.kubernetes.io/provisioned-by"] = tt.provisionedBy
+			}
 			pv := &corev1.PersistentVolume{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        tt.volumeName,
-					Annotations: map[string]string{},
+					Annotations: pvAnnotations,
 				},
 				Spec: pvSpec,
 			}
 			k8sClient = fake.NewSimpleClientset(pv)
-			volumeID, tags, err := processPersistentVolumeClaim(pvc)
+			volumeID, tags, provisionedBy, err := processPersistentVolumeClaim(pvc)
 			if (err == nil) == tt.wantedErr {
 				t.Errorf("processPersistentVolumeClaim() err = %v, wantedErr %v", err, tt.wantedErr)
 			}
@@ -884,6 +964,9 @@ func Test_processEBSPersistentVolumeClaim(t *testing.T) {
 			}
 			if !reflect.DeepEqual(tags, tt.wantedTags) {
 				t.Errorf("processPersistentVolumeClaim() tags = %v, want %v", tags, tt.wantedTags)
+			}
+			if tt.provisionerOnPVOnly && provisionedBy != tt.provisionedBy {
+				t.Errorf("processPersistentVolumeClaim() provisionedBy = %v, want %v", provisionedBy, tt.provisionedBy)
 			}
 		})
 	}
@@ -896,14 +979,15 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 	pvc.Spec.VolumeName = volumeName
 
 	tests := []struct {
-		name           string
-		provisionedBy  string
-		tagsAnnotation string
-		volumeID       string
-		volumeName     string
-		wantedTags     map[string]string
-		wantedVolumeID string
-		wantedErr      bool
+		name                string
+		provisionedBy       string
+		tagsAnnotation      string
+		volumeID            string
+		volumeName          string
+		provisionerOnPVOnly bool
+		wantedTags          map[string]string
+		wantedVolumeID      string
+		wantedErr           bool
 	}{
 		{
 			name:           "csi with valid tags and volume id",
@@ -914,6 +998,17 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 			wantedTags:     map[string]string{"foo": "bar"},
 			wantedVolumeID: "fsap-06cc098e562d23425",
 			wantedErr:      false,
+		},
+		{
+			name:                "csi with provisioner on PV only",
+			provisionedBy:       AWS_EFS_CSI,
+			tagsAnnotation:      "{\"foo\": \"bar\"}",
+			volumeName:          volumeName,
+			volumeID:            "fs-05b82f74723423::fsap-06cc098e562d23425",
+			provisionerOnPVOnly: true,
+			wantedTags:          map[string]string{"foo": "bar"},
+			wantedVolumeID:      "fsap-06cc098e562d23425",
+			wantedErr:           false,
 		},
 		{
 			name:           "csi with valid tags and invalid volume id",
@@ -947,10 +1042,13 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pvc.SetAnnotations(map[string]string{
-				annotationPrefix + "/tags":                 tt.tagsAnnotation,
-				"volume.kubernetes.io/storage-provisioner": tt.provisionedBy,
-			})
+			pvcAnnotations := map[string]string{
+				annotationPrefix + "/tags": tt.tagsAnnotation,
+			}
+			if !tt.provisionerOnPVOnly {
+				pvcAnnotations["volume.kubernetes.io/storage-provisioner"] = tt.provisionedBy
+			}
+			pvc.SetAnnotations(pvcAnnotations)
 
 			var pvSpec corev1.PersistentVolumeSpec
 			if tt.provisionedBy == AWS_EFS_CSI {
@@ -962,15 +1060,19 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 					},
 				}
 			}
+			pvAnnotations := map[string]string{}
+			if tt.provisionerOnPVOnly {
+				pvAnnotations["pv.kubernetes.io/provisioned-by"] = tt.provisionedBy
+			}
 			pv := &corev1.PersistentVolume{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        tt.volumeName,
-					Annotations: map[string]string{},
+					Annotations: pvAnnotations,
 				},
 				Spec: pvSpec,
 			}
 			k8sClient = fake.NewSimpleClientset(pv)
-			volumeID, tags, err := processPersistentVolumeClaim(pvc)
+			volumeID, tags, provisionedBy, err := processPersistentVolumeClaim(pvc)
 			if (err == nil) == tt.wantedErr {
 				t.Errorf("processPersistentVolumeClaim() err = %v, wantedErr %v", err, tt.wantedErr)
 			}
@@ -979,6 +1081,9 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 			}
 			if !reflect.DeepEqual(tags, tt.wantedTags) {
 				t.Errorf("processPersistentVolumeClaim() tags = %v, want %v", tags, tt.wantedTags)
+			}
+			if tt.provisionerOnPVOnly && provisionedBy != tt.provisionedBy {
+				t.Errorf("processPersistentVolumeClaim() provisionedBy = %v, want %v", provisionedBy, tt.provisionedBy)
 			}
 		})
 	}
@@ -990,10 +1095,12 @@ func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
 	tests := []struct {
 		name           string
 		pvcAnnotations map[string]string
+		pvAnnotations  map[string]string
 		pvSource       corev1.PersistentVolumeSource
 		pvName         string
 		wantedVolumeID string
 		wantedTags     map[string]string
+		wantedProvisioner string
 		wantedErr      bool
 	}{
 		{
@@ -1010,6 +1117,24 @@ func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
 			pvName:         volumeName,
 			wantedVolumeID: "projects/my-project/zones/us-east1-a/disks/my-disk",
 			wantedTags:     map[string]string{"foo": "bar"},
+		},
+		{
+			name: "csi provisioner on PV only",
+			pvcAnnotations: map[string]string{
+				annotationPrefix + "/tags": "{\"foo\": \"bar\"}",
+			},
+			pvAnnotations: map[string]string{
+				"pv.kubernetes.io/provisioned-by": GCP_PD_CSI,
+			},
+			pvSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					VolumeHandle: "projects/my-project/zones/us-east1-a/disks/my-disk",
+				},
+			},
+			pvName:            volumeName,
+			wantedVolumeID:    "projects/my-project/zones/us-east1-a/disks/my-disk",
+			wantedTags:        map[string]string{"foo": "bar"},
+			wantedProvisioner: GCP_PD_CSI,
 		},
 		{
 			name: "legacy in-tree provisioner with legacy in-tree volume source",
@@ -1123,7 +1248,8 @@ func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
 			// setup PV
 			pv := &corev1.PersistentVolume{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: tt.pvName,
+					Name:        tt.pvName,
+					Annotations: tt.pvAnnotations,
 				},
 				Spec: corev1.PersistentVolumeSpec{
 					StorageClassName:       dummyStorageClassName,
@@ -1132,7 +1258,7 @@ func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
 			}
 
 			k8sClient = fake.NewSimpleClientset(pv)
-			volumeID, tags, err := processPersistentVolumeClaim(pvc)
+			volumeID, tags, provisionedBy, err := processPersistentVolumeClaim(pvc)
 
 			if (err == nil) == tt.wantedErr {
 				t.Errorf("processPersistentVolumeClaim() err = %v, wantedErr %v", err, tt.wantedErr)
@@ -1142,6 +1268,9 @@ func Test_processGCPPDPersistentVolumeClaim(t *testing.T) {
 			}
 			if !reflect.DeepEqual(tags, tt.wantedTags) {
 				t.Errorf("processPersistentVolumeClaim() tags = %v, want %v", tags, tt.wantedTags)
+			}
+			if tt.wantedProvisioner != "" && provisionedBy != tt.wantedProvisioner {
+				t.Errorf("processPersistentVolumeClaim() provisionedBy = %v, want %v", provisionedBy, tt.wantedProvisioner)
 			}
 		})
 	}
