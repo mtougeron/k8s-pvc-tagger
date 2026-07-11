@@ -82,8 +82,18 @@ func Test_parseAWSEFSVolumeID(t *testing.T) {
 			want:        "fsap-06cc098e562d24942",
 		},
 		{
+			name:        "full AWS-EFS.VolumeID - with efs:",
+			k8sVolumeID: "efs:fs-05b82f747004ac501::fsap-06cc098e562d24942",
+			want:        "fsap-06cc098e562d24942",
+		},
+		{
 			name:        "invalid AWS-EFS.VolumeID",
 			k8sVolumeID: "fsp-05b82f747004ac501::fsap-06cc098e562d24942",
+			want:        "",
+		},
+		{
+			name:        "invalid AWS-EFS.VolumeID with efs:",
+			k8sVolumeID: "efs:fsp-05b82f747004ac501::fsap-06cc098e562d24942",
 			want:        "",
 		},
 		{
@@ -1009,6 +1019,16 @@ func Test_processEFSPersistentVolumeClaim(t *testing.T) {
 			tagsAnnotation: "{\"foo\": \"bar\"}",
 			volumeName:     volumeName,
 			volumeID:       "fs-05b82f74723423::fsap-06cc098e562d23425",
+			wantedTags:     map[string]string{"foo": "bar"},
+			wantedVolumeID: "fsap-06cc098e562d23425",
+			wantedErr:      false,
+		},
+		{
+			name:           "csi with valid tags and volume id - with efs in volumeId",
+			provisionedBy:  AWS_EFS_CSI,
+			tagsAnnotation: "{\"foo\": \"bar\"}",
+			volumeName:     volumeName,
+			volumeID:       "efs:fs-05b82f74723423::fsap-06cc098e562d23425",
 			wantedTags:     map[string]string{"foo": "bar"},
 			wantedVolumeID: "fsap-06cc098e562d23425",
 			wantedErr:      false,

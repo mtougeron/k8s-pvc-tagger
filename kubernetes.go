@@ -56,7 +56,7 @@ var (
 
 const (
 	// Matching strings for volume operations.
-	regexpEFSVolumeID = `^fs-\w+::(fsap-\w+)$`
+	regexpEFSVolumeID = `^(?:efs:)?fs-\w+::(fsap-\w+)$`
 
 	// supported AWS storage provisioners:
 	AWS_EBS_CSI_AUTO = "ebs.csi.eks.amazonaws.com"
