@@ -790,6 +790,62 @@ func Test_annotationPrefix(t *testing.T) {
 	}
 }
 
+func Test_shouldReconcileTags(t *testing.T) {
+	tests := []struct {
+		name          string
+		oldVolumeName string
+		newVolumeName string
+		oldTags       map[string]string
+		newTags       map[string]string
+		want          bool
+	}{
+		{
+			name:          "newly bound with identical tags still reconciles",
+			oldVolumeName: "",
+			newVolumeName: "pvc-1234",
+			oldTags:       map[string]string{"foo": "bar"},
+			newTags:       map[string]string{"foo": "bar"},
+			want:          true,
+		},
+		{
+			name:          "newly bound with different tags reconciles",
+			oldVolumeName: "",
+			newVolumeName: "pvc-1234",
+			oldTags:       map[string]string{"foo": "bar"},
+			newTags:       map[string]string{"foo": "baz"},
+			want:          true,
+		},
+		{
+			name:          "already bound with identical tags does not reconcile",
+			oldVolumeName: "pvc-1234",
+			newVolumeName: "pvc-1234",
+			oldTags:       map[string]string{"foo": "bar"},
+			newTags:       map[string]string{"foo": "bar"},
+			want:          false,
+		},
+		{
+			name:          "already bound with different tags reconciles",
+			oldVolumeName: "pvc-1234",
+			newVolumeName: "pvc-1234",
+			oldTags:       map[string]string{"foo": "bar"},
+			newTags:       map[string]string{"foo": "baz"},
+			want:          true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldPVC := &corev1.PersistentVolumeClaim{}
+			oldPVC.Spec.VolumeName = tt.oldVolumeName
+			newPVC := &corev1.PersistentVolumeClaim{}
+			newPVC.Spec.VolumeName = tt.newVolumeName
+
+			if got := shouldReconcileTags(oldPVC, newPVC, tt.oldTags, tt.newTags); got != tt.want {
+				t.Errorf("shouldReconcileTags() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_getProvisionedByFromPVCAndPV(t *testing.T) {
 	tests := []struct {
 		name           string

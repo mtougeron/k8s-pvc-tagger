@@ -148,6 +148,11 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 			pvc := getPVC(obj)
 			log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Infoln("New PVC Added to Store")
 
+			if pvc.Spec.VolumeName == "" {
+				log.WithFields(log.Fields{"namespace": pvc.GetNamespace(), "pvc": pvc.GetName()}).Debugln("PersistentVolume not created yet")
+				return
+			}
+
 			volumeID, tags, provisionedBy, err := processPersistentVolumeClaim(pvc)
 			if err != nil || len(tags) == 0 {
 				return
@@ -197,7 +202,7 @@ func watchForPersistentVolumeClaims(ctx context.Context, ch chan struct{}, watch
 
 			oldTags := buildTags(oldPVC)
 			newTags := buildTags(newPVC)
-			if reflect.DeepEqual(oldTags, newTags) {
+			if !shouldReconcileTags(oldPVC, newPVC, oldTags, newTags) {
 				return
 			}
 			log.WithFields(log.Fields{"namespace": newPVC.GetNamespace(), "pvc": newPVC.GetName()}).Infoln("Need to reconcile tags")
@@ -348,6 +353,17 @@ func parseAWSEFSVolumeID(k8sVolumeID string) string {
 		return ""
 	}
 	return string(matches[1])
+}
+
+// shouldReconcileTags decides whether an updated PVC's tags need to be reconciled against the
+// underlying cloud volume. It always reconciles when the PV was just bound (VolumeName newly
+// populated), since that may be the first opportunity to tag the volume even if the desired tags
+// themselves didn't change; otherwise it only reconciles when the desired tags actually differ.
+func shouldReconcileTags(oldPVC, newPVC *corev1.PersistentVolumeClaim, oldTags, newTags map[string]string) bool {
+	if oldPVC.Spec.VolumeName == "" && newPVC.Spec.VolumeName != "" {
+		return true
+	}
+	return !reflect.DeepEqual(oldTags, newTags)
 }
 
 func buildTags(pvc *corev1.PersistentVolumeClaim) map[string]string {
