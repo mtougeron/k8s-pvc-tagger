@@ -4,6 +4,7 @@
 *.dll
 *.so
 *.dylib
+/k8s-pvc-tagger
 
 # Test binary, built with `go test -c`
 *.test
