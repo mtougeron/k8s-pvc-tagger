@@ -4,6 +4,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ include "k8s-pvc-tagger.fullname" . }}
+  labels:
+    {{- include "k8s-pvc-tagger.labels" . | nindent 4 }}
 rules:
   - apiGroups:
     - coordination.k8s.io
@@ -32,6 +34,8 @@ kind: Role
 metadata:
   name: {{ include "k8s-pvc-tagger.fullname" $ }}-pvc
   namespace: {{ . }}
+  labels:
+    {{- include "k8s-pvc-tagger.labels" . | nindent 4 }}
 rules:
   - apiGroups:
     - ""
@@ -47,6 +51,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {{ include "k8s-pvc-tagger.fullname" $ }}-pvc
   namespace: {{ . }}
+  labels:
+    {{- include "k8s-pvc-tagger.labels" . | nindent 4 }}
 subjects:
   - kind: ServiceAccount
     name: {{ include "k8s-pvc-tagger.serviceAccountName" $ }}
@@ -62,6 +68,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ include "k8s-pvc-tagger.fullname" . }}
+  labels:
+    {{- include "k8s-pvc-tagger.labels" . | nindent 4 }}
 rules:
   - apiGroups:
     - ""
@@ -79,6 +87,8 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {{ include "k8s-pvc-tagger.fullname" . }}
+  labels:
+    {{- include "k8s-pvc-tagger.labels" . | nindent 4 }}
 subjects:
   - kind: ServiceAccount
     name: {{ include "k8s-pvc-tagger.serviceAccountName" . }}
@@ -92,6 +102,8 @@ kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {{ include "k8s-pvc-tagger.fullname" . }}
+  labels:
+    {{- include "k8s-pvc-tagger.labels" . | nindent 4 }}
 subjects:
   - kind: ServiceAccount
     name: {{ include "k8s-pvc-tagger.serviceAccountName" . }}
